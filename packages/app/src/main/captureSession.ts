@@ -12,6 +12,8 @@ import {
 import type { CaptureIntent, CaptureTarget, PendingCapture } from '@hiveannotate/core'
 import { helperPath } from './helper.ts'
 import { Overlay } from './overlay.ts'
+import { RegionOverlay } from './regionOverlay.ts'
+import type { Rect } from './regionOverlay.ts'
 import { execFile } from 'node:child_process'
 import { promisify } from 'node:util'
 import { join } from 'node:path'
@@ -25,6 +27,7 @@ const run = promisify(execFile)
  */
 export class CaptureSession {
   private readonly overlay = new Overlay()
+  private readonly regionOverlay = new RegionOverlay()
   private readonly store: BundleStore
   private readonly flow: CaptureFlow
   private readonly locator = new WindowLocator(helperPath(), { excludePid: process.pid })
@@ -59,16 +62,30 @@ export class CaptureSession {
   }
 
   async capture(intent: CaptureIntent): Promise<void> {
-    if (this.overlay.isVisible()) return
+    if (this.overlay.isVisible() || this.regionOverlay.isVisible()) return
+
+    if (intent === 'region') {
+      await this.regionOverlay.show()
+      return
+    }
 
     const target = await this.targetFor(intent)
     if (!target) return
 
+    await this.beginAndShow(target, intent)
+  }
+
+  /** Called once the picker has a rectangle: capture it, then raise the bar. */
+  private async captureRegion(rect: Rect): Promise<void> {
+    this.regionOverlay.hide()
+    await this.beginAndShow({ kind: 'region', ...rect }, 'region')
+  }
+
+  private async beginAndShow(target: CaptureTarget, intentLabel: string): Promise<void> {
     const started = Date.now()
     const begun = await this.flow.begin(target, this.overlay.hostApp() ?? undefined)
 
     if (!begun.ok) {
-      // The failure-state bar is hive-v1-13; until then, say so honestly.
       console.log(`[capture] failed: ${begun.reason}${begun.detail ? ` — ${begun.detail}` : ''}`)
       return
     }
@@ -87,17 +104,11 @@ export class CaptureSession {
       bundles: open.map((b) => ({ id: b.id, intent: b.intent, captureCount: b.captureCount })),
     })
 
-    console.log(`[capture] ${intent} — bar up in ${Date.now() - started}ms`)
+    console.log(`[capture] ${intentLabel} — bar up in ${Date.now() - started}ms`)
   }
 
   private async targetFor(intent: CaptureIntent): Promise<CaptureTarget | null> {
     if (intent === 'screen') return { kind: 'screen' }
-    if (intent === 'region') {
-      // The keyboard region picker is hive-v1-12. Until it exists, a region
-      // chord falls back to the full screen rather than doing nothing.
-      return { kind: 'screen' }
-    }
-
     const located = await this.locator.frontmost()
     if (!located.ok) {
       console.log(`[capture] no window to capture: ${located.reason}`)
@@ -126,6 +137,17 @@ export class CaptureSession {
       await this.overlay.hide()
       console.log(`[capture] filed into ${bundle.id} (${bundle.captures.length} captures)`)
       return { id: bundle.id }
+    })
+
+    ipcMain.handle('region:pick', async (_e, rect: Rect) => {
+      await this.captureRegion(rect)
+      return null
+    })
+
+    ipcMain.handle('region:cancel', async () => {
+      this.regionOverlay.hide()
+      console.log('[capture] region cancelled')
+      return null
     })
 
     ipcMain.handle('capture:discard', async () => {

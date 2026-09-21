@@ -21,4 +21,9 @@ contextBridge.exposeInMainWorld('hive', {
     ipcRenderer.invoke('capture:commit', payload),
 
   discard: () => ipcRenderer.invoke('capture:discard'),
+
+  onRegionBounds: (fn: (bounds: unknown) => void) =>
+    ipcRenderer.on('region:bounds', (_e, bounds: unknown) => fn(bounds)),
+  pickRegion: (rect: unknown) => ipcRenderer.invoke('region:pick', rect),
+  cancelRegion: () => ipcRenderer.invoke('region:cancel'),
 })

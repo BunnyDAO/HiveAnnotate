@@ -322,3 +322,21 @@ describe('a damaged manifest', () => {
     expect(listed.find((b) => b.id === bad.id)).toMatchObject({ damaged: true })
   })
 })
+
+describe('the date in a bundle id', () => {
+  it('is the local date, not UTC', async () => {
+    // Captured late in the evening, UTC has already rolled over. A bundle made
+    // tonight must not be filed under tomorrow's date — the Catalogue is
+    // scanned by eye, and a date that disagrees with the user is a bug.
+    const lateEvening = new Date('2026-09-21T04:00:00Z') // 21:00 on the 20th, UTC-7
+    const { id } = await store.createBundle(capture({ note: 'evening bug', takenAt: lateEvening }))
+
+    const local = new Intl.DateTimeFormat('en-CA', {
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+    }).format(lateEvening)
+
+    expect(id.startsWith(local)).toBe(true)
+  })
+})

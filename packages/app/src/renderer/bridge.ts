@@ -15,12 +15,22 @@ export interface PendingView {
   bundles: { id: string; intent: string; captureCount: number }[]
 }
 
+export interface Rect {
+  x: number
+  y: number
+  width: number
+  height: number
+}
+
 export interface HiveBridge {
   appName: string
   bundleId: string
   onPending?: (fn: (view: PendingView) => void) => void
   commit?: (p: { note: string; targetIndex: number; copyPointer: boolean }) => Promise<unknown>
   discard?: () => Promise<unknown>
+  onRegionBounds?: (fn: (bounds: Rect) => void) => void
+  pickRegion?: (rect: Rect) => Promise<unknown>
+  cancelRegion?: () => Promise<unknown>
 }
 
 declare global {

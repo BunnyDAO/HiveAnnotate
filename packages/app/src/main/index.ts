@@ -131,42 +131,90 @@ app.on('will-quit', () => hotkeys?.dispose())
  */
 if (process.argv.includes('--self-test')) {
   void app.whenReady().then(async () => {
-    const { defaultBundleRoot } = await import('@hiveannotate/core')
-    const { BundleStore } = await import('@hiveannotate/core')
+    const { BundleStore, defaultBundleRoot } = await import('@hiveannotate/core')
     const wait = (ms: number) => new Promise((r) => setTimeout(r, ms))
+    const visible = () => BrowserWindow.getAllWindows().find((w) => w.isVisible())
+
+    const type = (win: BrowserWindow, keys: string[]): void => {
+      for (const key of keys) {
+        win.webContents.sendInputEvent({ type: 'keyDown', keyCode: key })
+        if (key.length === 1) win.webContents.sendInputEvent({ type: 'char', keyCode: key })
+        win.webContents.sendInputEvent({ type: 'keyUp', keyCode: key })
+      }
+    }
+
+    const results: string[] = []
+    const check = (name: string, pass: boolean, detail = ''): void => {
+      results.push(`${pass ? 'PASS' : 'FAIL'}  ${name}${detail ? ` — ${detail}` : ''}`)
+      console.log(results[results.length - 1])
+    }
 
     await wait(1200)
+
+    // --- full-screen capture through the bar -------------------------------
     await session?.capture('screen')
     await wait(1500)
-
-    const overlayWindow = BrowserWindow.getAllWindows().find((w) => w.isVisible())
-    if (!overlayWindow) {
-      console.log('SELF-TEST FAIL: the capture bar never appeared')
-      app.quit()
-      return
+    const bar = visible()
+    check('screen: bar appeared', Boolean(bar))
+    if (bar) {
+      type(bar, [...'sidebar bug'])
+      await wait(300)
+      type(bar, ['Return'])
+      await wait(1800)
     }
-    console.log('SELF-TEST: bar is visible')
 
-    for (const ch of ['s', 'i', 'd', 'e', 'b', 'a', 'r', ' ', 'b', 'u', 'g']) {
-      overlayWindow.webContents.sendInputEvent({ type: 'keyDown', keyCode: ch })
-      overlayWindow.webContents.sendInputEvent({ type: 'char', keyCode: ch })
-      overlayWindow.webContents.sendInputEvent({ type: 'keyUp', keyCode: ch })
-    }
-    await wait(400)
-    overlayWindow.webContents.sendInputEvent({ type: 'keyDown', keyCode: 'Return' })
-    overlayWindow.webContents.sendInputEvent({ type: 'keyUp', keyCode: 'Return' })
-    await wait(2000)
+    // --- region capture through the picker, then the bar -------------------
+    await session?.capture('region')
+    await wait(1500)
+    const picker = visible()
+    check('region: picker appeared', Boolean(picker))
+    if (picker) {
+      type(picker, ['s', 'd'])
+      await wait(300)
+      type(picker, ['Return'])
+      await wait(1800)
 
-    const bundles = await new BundleStore(defaultBundleRoot()).listBundles()
-    if (bundles.length === 1 && bundles[0]) {
-      console.log(`SELF-TEST PASS: filed "${bundles[0].intent}" as ${bundles[0].id} with ${bundles[0].captureCount} capture(s)`)
-    } else {
-      console.log(`SELF-TEST FAIL: expected one bundle, found ${bundles.length}`)
+      const regionBar = visible()
+      check('region: bar appeared after picking', Boolean(regionBar))
+      if (regionBar) {
+        type(regionBar, [...'console output'])
+        await wait(300)
+        type(regionBar, ['Return'])
+        await wait(1800)
+      }
     }
+
+    const store = new BundleStore(defaultBundleRoot())
+    const bundles = await store.listBundles()
+
+    // Both captures happen seconds apart, so the Active Bundle is still fresh
+    // and the second one appends. One bundle with two captures is the correct
+    // outcome — and it exercises the append path as well as creation.
+    check('one bundle, two captures', bundles.length === 1, `found ${bundles.length} bundle(s)`)
+    if (bundles[0]) {
+      const bundle = await store.getBundle(bundles[0].id)
+      check('both captures landed', bundle.captures.length === 2, `${bundle.captures.length} capture(s)`)
+
+      const screen = bundle.captures[0]
+      const region = bundle.captures[1]
+      check(
+        'the screen capture has real pixels',
+        Boolean(screen && screen.kind === 'screen' && screen.width > 1000),
+        screen ? `${screen.kind} ${screen.width}x${screen.height}` : 'none',
+      )
+      // s then d on the grid picks a small middle-right cell, so the region
+      // must be markedly smaller than the full screen and tagged as a region.
+      check(
+        'the region capture is a genuine sub-rectangle',
+        Boolean(region && region.kind === 'region' && screen && region.width < screen.width / 2),
+        region ? `${region.kind} ${region.width}x${region.height}` : 'none',
+      )
+      check('its note was recorded', bundle.captures[1]?.note === 'console output', bundle.captures[1]?.note ?? '')
+    }
+
+    const failed = results.filter((r) => r.startsWith('FAIL'))
+    console.log(`\nSELF-TEST: ${results.length - failed.length}/${results.length} passed`)
+    console.log(failed.length ? 'SELF-TEST FAIL' : 'SELF-TEST PASS')
     app.quit()
   })
 }
-
-// A background app has no windows to keep it alive; closing the About window
-// must not quit it.
-app.on('window-all-closed', () => {})

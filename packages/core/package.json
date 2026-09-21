@@ -6,7 +6,8 @@
   "main": "./src/index.ts",
   "exports": {
     ".": "./src/index.ts",
-    "./appInfo": "./src/appInfo.ts"
+    "./appInfo": "./src/appInfo.ts",
+    "./regionSelection": "./src/regionSelection.ts"
   },
   "comment": "No Electron dependency here, ever. The MCP server (hive-v1-10) runs standalone with Electron absent, and this manifest is the structural half of that guarantee.",
   "dependencies": {}

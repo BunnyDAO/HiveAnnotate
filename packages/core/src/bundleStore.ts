@@ -69,6 +69,15 @@ function isManifest(value: unknown): value is Manifest {
   )
 }
 
+/** YYYY-MM-DD in the machine's own timezone. */
+function localDate(when: Date): string {
+  return new Intl.DateTimeFormat('en-CA', {
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(when)
+}
+
 function fileNameFor(index: number): string {
   return `${String(index).padStart(3, '0')}.png`
 }
@@ -275,7 +284,10 @@ export class BundleStore {
   }
 
   private async allocateId(note: string, when: Date): Promise<string> {
-    const datePart = when.toISOString().slice(0, 10)
+    // Local date, not UTC. A capture taken at 9pm must not be filed under
+    // tomorrow — the Catalogue is scanned by eye and the date has to agree
+    // with the person reading it.
+    const datePart = localDate(when)
     const base = `${datePart}-${slugify(note)}`
 
     const taken = new Set(await this.existingIds())

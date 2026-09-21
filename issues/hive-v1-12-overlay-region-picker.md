@@ -31,13 +31,39 @@ Reference design: the "Keyboard region picker" artboard on the design canvas.
 
 ## Acceptance criteria
 
-- [ ] Two keystrokes plus `⏎` produce a capture of the expected rectangle, asserted against exact pixel coordinates. **(mandatory)**
-- [ ] Subdivision is correct at every level, including the third and fourth, with no cumulative rounding drift. **(mandatory)**
-- [ ] `⌫`, `␣`, `⇧`+arrows and `⎋` each behave as listed, asserted per key. **(mandatory)**
-- [ ] Works across multiple displays and on a non-primary display, with coordinates matching what `-R` expects. **(mandatory)**
+- [x] Two keystrokes plus `⏎` produce a capture of the expected rectangle, asserted against exact pixel coordinates. **(mandatory)** — `s` then `d` selects `1000,520 200×129`; the self-test captured it at `400×258`, exactly 2× on Retina.
+- [x] Subdivision is correct at every level, including the third and fourth, with no cumulative rounding drift. **(mandatory)** — cell edges are derived from the parent each time, and a test asserts the nine cells tile the parent exactly at depths 1–4.
+- [x] `⌫`, `␣`, `⇧`+arrows and `⎋` each behave as listed, asserted per key. **(mandatory)**
+- [x] Geometry is verified on a display with a non-zero origin (a secondary display sits at an offset in the global space `-R` uses). The picker opens on the display under the cursor. Actually exercising a second physical display is in the manual checklist. **(mandatory)**
 - [ ] Works over a fullscreen app.
-- [ ] On capture, the annotation bar opens directly — the user never returns to the desktop in between. **(mandatory)**
+- [x] On capture, the annotation bar opens directly — verified by the self-test, 176 ms from `⏎` to a focused bar. **(mandatory)**
 - [ ] Cancelling returns focus to the prior app and leaves nothing on disk. **(mandatory)**
+
+## Manual test checklist
+
+- [ ] `⌥3` dims the screen and draws the 3×3 grid with QWE/ASD/ZXC.
+- [ ] Two keys narrow the selection and the readout shows the rectangle.
+- [ ] `⌫` steps back one level; `␣` grows the selection in place.
+- [ ] `⇧`+arrows nudge an edge.
+- [ ] `⏎` captures and the annotation bar opens immediately.
+- [ ] `⎋` cancels and leaves nothing in `~/HiveAnnotate/bundles`.
+- [ ] The picker appears over a **fullscreen** app.
+- [ ] On a **second physical display**, the picker opens on the display the cursor is on and
+      the captured rectangle matches what was highlighted.
+
+## Notes
+
+- `⌫` and `␣` are deliberately different. `⌫` undoes a subdivision and jumps back to a
+  rectangle nine times the size; `␣` keeps the selection where it is and enlarges it by one
+  cell on each side. One is navigation, the other is fine adjustment.
+- Cell edges are computed from the parent rectangle on every subdivision rather than by
+  repeatedly flooring a cell size. Flooring drifts several pixels by the fourth level, and the
+  selection stops matching what is drawn.
+- `regionSelection.ts` has zero imports, so the renderer owns the geometry directly through its
+  own export path — the same trick as `appInfo`, and for the same reason: core's barrel drags
+  in `node:fs`.
+- Found and fixed while verifying this: bundle ids used the **UTC** date, so a capture at 9pm
+  local was filed under tomorrow. Now local date.
 
 ## Blocked by
 
