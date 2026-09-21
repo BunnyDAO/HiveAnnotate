@@ -13,7 +13,8 @@
     "icons": "node tools/make-tray-icon.mjs",
     "test": "vitest run",
     "test:watch": "vitest",
-    "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p packages/core/tsconfig.json --noEmit && tsc -p packages/mcp/tsconfig.json --noEmit && tsc -p packages/app/tsconfig.json --noEmit"
+    "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p packages/core/tsconfig.json --noEmit && tsc -p packages/mcp/tsconfig.json --noEmit && tsc -p packages/app/tsconfig.json --noEmit",
+    "build:native": "sh packages/app/native/build.sh"
   },
   "devDependencies": {
     "@types/node": "^22.10.2",

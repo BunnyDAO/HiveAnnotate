@@ -7,3 +7,6 @@ release/
 
 # Valkyrie per-repo workflow state
 .claude/valk/
+
+# Compiled native helper (built by npm run build:native)
+packages/app/build/hive-helper

@@ -21,5 +21,7 @@ export {
   createFolderAdapter,
 } from './handoff.ts'
 export type { HandoffAdapter, HandoffTarget } from './handoff.ts'
+export { WindowLocator } from './macos/windowLocator.ts'
+export type { FrontmostWindow, LocateResult } from './macos/windowLocator.ts'
 export { renderBundleMarkdown } from './renderBundle.ts'
 export { slugify } from './slugify.ts'

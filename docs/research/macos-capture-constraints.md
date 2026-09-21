@@ -64,3 +64,40 @@ is mechanically supported without interactive mode.
 - CleanShot X, Shottr, Xnapper are NOT on MAS (direct download / Setapp only).
 - Shelling to a system binary brushes Guideline 2.4.5(iv); approval odds UNCERTAIN.
 - Moot while the product is a personal tool. Revisit only if distribution becomes a goal.
+
+---
+
+## CORRECTION — measured on macOS 26.3 (build 25D125), 2026-09-20
+
+The claim above that "`screencapture` does not error without the grant — it succeeds and
+returns the desktop wallpaper" is **too broad**. Measured behaviour differs by capture type.
+
+Observed directly, in one session, at a moment when the Screen Recording grant was not yet
+in effect for the process tree:
+
+| Invocation | Result without the grant |
+|---|---|
+| `screencapture -l <windowid>` | **exit 1**, `could not create image from window`, **no file written** |
+| `screencapture -R x,y,w,h` | **exit 1**, `could not create image from rect`, **no file written** |
+| `screencapture -x` (full screen) | **exit 0**, file written |
+
+Once the grant was in effect, all three produced correct images at true Retina resolution
+(`-R 100,100,200,200` → a 400×400 PNG; `-l` → the window plus its shadow).
+
+### What this changes
+
+- **Window and region capture fail loudly.** They are detectable from the exit status and the
+  absent file, so they are not the silent-wallpaper hazard the research warned about.
+- **Full-screen capture is the one that succeeds regardless**, and is therefore the case where
+  a pre-flight check genuinely earns its keep. The hazard is real but narrower than assumed.
+- **The pre-flight check is still right**, for a better reason than "the only way to detect it":
+  it lets the app explain the problem *before* taking a capture, rather than showing the user a
+  failed capture and an error.
+- **The grant can arrive mid-session.** Captures that failed began working after the grant took
+  effect, with no restart. So the retry path in hive-v1-13 is not a nicety — it is the normal
+  first-run experience: first capture fails, user grants, retry succeeds, and the note they
+  already typed must survive that round trip.
+
+`CGPreflightScreenCaptureAccess` queries the grant **without prompting**;
+`CGRequestScreenCaptureAccess` is what raises the system dialog. Both are exposed by
+`packages/app/native/hive-helper.m` as `hive-helper screen-permission [--request]`.
