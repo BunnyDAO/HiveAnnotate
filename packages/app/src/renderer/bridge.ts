@@ -7,6 +7,7 @@ export interface Destination {
 }
 
 export interface PendingView {
+  isRetry?: boolean
   kind: string
   app: string | null
   width: number
@@ -22,12 +23,30 @@ export interface Rect {
   height: number
 }
 
+export interface FailureExplanation {
+  title: string
+  detail: string
+  retryLabel: string
+  alternative?: string
+  settingsPane?: string
+  blocking: boolean
+}
+
+export interface FailurePayload {
+  reason: string
+  explanation: FailureExplanation
+}
+
 export interface HiveBridge {
   appName: string
   bundleId: string
   onPending?: (fn: (view: PendingView) => void) => void
   commit?: (p: { note: string; targetIndex: number; copyPointer: boolean }) => Promise<unknown>
   discard?: () => Promise<unknown>
+  onFailed?: (fn: (payload: FailurePayload) => void) => void
+  retry?: () => Promise<unknown>
+  wholeScreen?: () => Promise<unknown>
+  openSettings?: (pane: string) => Promise<unknown>
   onRegionBounds?: (fn: (bounds: Rect) => void) => void
   pickRegion?: (rect: Rect) => Promise<unknown>
   cancelRegion?: () => Promise<unknown>

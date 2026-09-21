@@ -184,6 +184,40 @@ if (process.argv.includes('--self-test')) {
       }
     }
 
+    // --- a failed capture must keep the note and retry into it -------------
+    const { CaptureSession: Session } = await import('./captureSession.ts')
+    Session.forceFailure = 'no-permission'
+    await session?.capture('screen')
+    await wait(1500)
+
+    const failedBar = visible()
+    check('failure: the bar appeared anyway', Boolean(failedBar))
+    if (failedBar) {
+      const shown = await failedBar.webContents.executeJavaScript('document.body.innerText')
+      check('failure: it explains what happened', /Screen Recording is off/i.test(shown), '')
+      check('failure: it says nothing was taken', /nothing was taken/i.test(shown), '')
+
+      // Type into the failed bar — this is the sentence that must survive.
+      type(failedBar, [...'note typed during failure'])
+      await wait(300)
+
+      // The grant "arrives"; retry with ⏎.
+      Session.forceFailure = null
+      type(failedBar, ['Return'])
+      await wait(2000)
+
+      const retried = visible()
+      const noteAfter = retried
+        ? await retried.webContents.executeJavaScript('document.querySelector("#note")?.value ?? ""')
+        : ''
+      check('failure: the note survived the retry', noteAfter === 'note typed during failure', JSON.stringify(noteAfter))
+
+      if (retried) {
+        type(retried, ['Return'])
+        await wait(1800)
+      }
+    }
+
     const store = new BundleStore(defaultBundleRoot())
     const bundles = await store.listBundles()
 
@@ -193,7 +227,7 @@ if (process.argv.includes('--self-test')) {
     check('one bundle, two captures', bundles.length === 1, `found ${bundles.length} bundle(s)`)
     if (bundles[0]) {
       const bundle = await store.getBundle(bundles[0].id)
-      check('both captures landed', bundle.captures.length === 2, `${bundle.captures.length} capture(s)`)
+      check('all three captures landed', bundle.captures.length === 3, `${bundle.captures.length} capture(s)`)
 
       const screen = bundle.captures[0]
       const region = bundle.captures[1]
@@ -210,6 +244,11 @@ if (process.argv.includes('--self-test')) {
         region ? `${region.kind} ${region.width}x${region.height}` : 'none',
       )
       check('its note was recorded', bundle.captures[1]?.note === 'console output', bundle.captures[1]?.note ?? '')
+      check(
+        'the retried capture filed under the note typed during the failure',
+        bundle.captures.some((c) => c.note === 'note typed during failure'),
+        bundle.captures.map((c) => c.note).join(' | '),
+      )
     }
 
     const failed = results.filter((r) => r.startsWith('FAIL'))

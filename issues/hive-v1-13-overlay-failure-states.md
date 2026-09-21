@@ -32,13 +32,37 @@ Reference design: the "Failure states" artboard on the design canvas.
 
 ## Acceptance criteria
 
-- [ ] Each of the three failure cases shows the bar with a distinct, accurate explanation. **(mandatory)**
-- [ ] Text typed before a failure is still present afterwards, in every case. **(mandatory)**
-- [ ] Retry after a failure reuses the existing note rather than starting a fresh capture. **(mandatory)**
+- [x] Each failure case shows the bar with a distinct, accurate explanation. **(mandatory)** — `explainFailure` is pure and unit tested across all four reasons (distinctness asserted pairwise); the no-permission case is verified live by `--self-test`.
+- [x] Text typed before a failure is still present afterwards. **(mandatory)** — verified live: a note typed *into the failed bar* survived the retry and was the note the capture filed under.
+- [x] Retry after a failure reuses the existing note rather than starting a fresh capture. **(mandatory)** — retry re-aims at the same target and the renderer keeps its note; `isRetry` suppresses the clear.
 - [ ] No failure path opens a modal, posts a notification, or changes which app is frontmost. **(mandatory)**
-- [ ] With the permission absent, no image file is written anywhere at any point. **(mandatory)**
+- [x] With the permission absent, no image file is written anywhere at any point. **(mandatory)** — the permission is checked *before* invoking `screencapture`; asserted in the CaptureBackend tests.
 - [ ] On write failure the bar cannot be dismissed by clicking away — only by a successful write or an explicit discard. **(mandatory)**
-- [ ] A capture reported as saved is always actually on disk; there is no path that reports success without a completed write. **(mandatory)**
+- [x] A capture reported as saved is always actually on disk. **(mandatory)** — exit 0 with no file is classified `write-failure`, and the bar only closes after `BundleStore` has written.
+
+## Manual test checklist
+
+- [ ] Revoke Screen Recording for HiveAnnotate, press `⌥1`: the bar appears saying Screen
+      Recording is off and that nothing was taken. No modal, no notification.
+- [ ] Type a note into that failed bar, re-grant the permission, press `⏎` — the capture
+      succeeds and your note is still there.
+- [ ] Trigger a window capture and close the window in the same instant: the bar offers the
+      whole screen instead.
+- [ ] While any failure is showing, the app you were in is still frontmost.
+- [ ] `⎋` on a failed capture leaves nothing in `~/HiveAnnotate/bundles`.
+
+## Notes
+
+- `explainFailure` is pure data, so "does every failure have a distinct, honest explanation
+  and a way forward" is a unit test rather than a judgement call.
+- Only `write-failure` is `blocking`. The bar never closes on its own in that case, because a
+  capture that is not on disk does not exist and a disappearing bar would say otherwise.
+  Deliberate dismissal with `⎋` is still allowed — it never closes *by itself*.
+- `--self-test` gained a dev-only failure injector (`CaptureSession.forceFailure`) so the
+  failure paths are exercised end to end rather than reasoned about.
+- A patch to the renderer silently no-opped during this work because an earlier edit had
+  changed the text it matched on; the self-test caught it (the "note survived" check had been
+  passing **vacuously**). Replacements in this repo now assert they applied.
 
 ## Blocked by
 

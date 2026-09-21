@@ -45,6 +45,10 @@ export type {
   CaptureTarget,
   MacCaptureBackendOptions,
 } from './macos/captureBackend.ts'
+export { explainFailure } from './explainFailure.ts'
+export type { FailureExplanation } from './explainFailure.ts'
+export { GRID_KEYS, RegionSelection } from './regionSelection.ts'
+export type { Rect } from './regionSelection.ts'
 export { pngSize } from './pngSize.ts'
 export { WindowLocator } from './macos/windowLocator.ts'
 export type { FrontmostWindow, LocateResult } from './macos/windowLocator.ts'

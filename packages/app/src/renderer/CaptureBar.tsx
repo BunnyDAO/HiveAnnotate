@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 
-import type { PendingView } from './bridge.ts'
+import type { FailurePayload, PendingView } from './bridge.ts'
 
 const ground = '#1E1B16'
 const border = '#3A342B'
@@ -38,17 +38,28 @@ export function CaptureBar(): React.JSX.Element {
   const [note, setNote] = useState('')
   const [targetIndex, setTargetIndex] = useState(0)
   const [error, setError] = useState<string | null>(null)
+  const [failure, setFailure] = useState<FailurePayload | null>(null)
   const field = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
     window.hive?.onPending?.((incoming) => {
       setView(incoming)
-      // The note is deliberately not cleared on a retry — see hive-v1-13. It is
-      // cleared here because this is a brand new capture.
-      setNote('')
-      setTargetIndex(0)
+      setFailure(null)
       setError(null)
+      // A retry keeps the note: a failed capture costs the image, never the
+      // sentence the user had already typed.
+      if (!incoming.isRetry) {
+        setNote('')
+        setTargetIndex(0)
+      }
       // Focused without a click: the whole premise is that you type immediately.
+      requestAnimationFrame(() => field.current?.focus())
+    })
+
+    window.hive?.onFailed?.((payload) => {
+      // The note is deliberately untouched here — rule two.
+      setFailure(payload)
+      setError(null)
       requestAnimationFrame(() => field.current?.focus())
     })
   }, [])
@@ -83,7 +94,16 @@ export function CaptureBar(): React.JSX.Element {
   function onKeyDown(e: React.KeyboardEvent<HTMLInputElement>): void {
     if (e.key === 'Escape') {
       e.preventDefault()
+      // Even a blocking failure can be dismissed deliberately — it just never
+      // closes on its own.
       void window.hive?.discard?.()
+      return
+    }
+    if (failure) {
+      if (e.key === 'Enter') {
+        e.preventDefault()
+        void window.hive?.retry?.()
+      }
       return
     }
     if (e.key === 'Tab') {
@@ -116,8 +136,10 @@ export function CaptureBar(): React.JSX.Element {
     >
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
         <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <span style={{ width: 7, height: 7, borderRadius: '50%', background: honey }} />
-          <span style={{ fontFamily: mono, fontSize: 11, letterSpacing: '.09em', color: honey }}>CAPTURED</span>
+          <span style={{ width: 7, height: 7, borderRadius: '50%', background: failure ? '#D9634F' : honey }} />
+          <span style={{ fontFamily: mono, fontSize: 11, letterSpacing: '.09em', color: failure ? '#D9634F' : honey }}>
+            {failure ? failure.explanation.title.toUpperCase() : 'CAPTURED'}
+          </span>
         </span>
         <span style={{ fontFamily: mono, fontSize: 11, color: dim }}>
           {view ? `${view.kind}${view.app ? ` · ${view.app}` : ''} · ${view.width}×${view.height}` : '…'}
@@ -146,6 +168,7 @@ export function CaptureBar(): React.JSX.Element {
         }}
       />
 
+      {!failure && (
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, paddingBottom: 14, flexWrap: 'wrap' }}>
         <span style={{ fontSize: 12, color: dim }}>filing into</span>
         <span
@@ -171,9 +194,55 @@ export function CaptureBar(): React.JSX.Element {
           </span>
         )}
       </div>
+      )}
 
       {error && (
         <div style={{ fontSize: 12, color: '#D9634F', paddingBottom: 12 }}>{error}</div>
+      )}
+
+      {failure && (
+        <div style={{ paddingBottom: 12 }}>
+          <div style={{ fontSize: 13, lineHeight: 1.55, color: '#D8D0BE', marginBottom: 10 }}>
+            {failure.explanation.detail}
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap' }}>
+            {failure.explanation.settingsPane && (
+              <button
+                type="button"
+                onClick={() => void window.hive?.openSettings?.(failure.explanation.settingsPane!)}
+                style={{
+                  padding: '7px 13px',
+                  borderRadius: 7,
+                  background: '#D9634F',
+                  border: '1px solid #D9634F',
+                  fontSize: 12,
+                  fontWeight: 600,
+                  color: '#1A0D0A',
+                  cursor: 'pointer',
+                  fontFamily: 'inherit',
+                }}
+              >
+                Open System Settings
+              </button>
+            )}
+            {failure.explanation.alternative && (
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 7 }}>
+                <Key>⌥2</Key>
+                <button
+                  type="button"
+                  onClick={() => void window.hive?.wholeScreen?.()}
+                  style={{ background: 'none', border: 'none', padding: 0, fontSize: 12, color: muted, cursor: 'pointer', fontFamily: 'inherit' }}
+                >
+                  {failure.explanation.alternative}
+                </button>
+              </span>
+            )}
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 7 }}>
+              <Key>⏎</Key>
+              <span style={{ fontSize: 12, color: muted }}>{failure.explanation.retryLabel}</span>
+            </span>
+          </div>
+        </div>
       )}
 
       <div style={{ borderTop: `1px solid #2A261F`, paddingTop: 13, display: 'flex', alignItems: 'center', gap: 16, flexWrap: 'wrap' }}>

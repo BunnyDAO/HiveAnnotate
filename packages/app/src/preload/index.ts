@@ -22,6 +22,12 @@ contextBridge.exposeInMainWorld('hive', {
 
   discard: () => ipcRenderer.invoke('capture:discard'),
 
+  onFailed: (fn: (payload: unknown) => void) =>
+    ipcRenderer.on('capture:failed', (_e, payload: unknown) => fn(payload)),
+  retry: () => ipcRenderer.invoke('capture:retry'),
+  wholeScreen: () => ipcRenderer.invoke('capture:whole-screen'),
+  openSettings: (pane: string) => ipcRenderer.invoke('capture:open-settings', pane),
+
   onRegionBounds: (fn: (bounds: unknown) => void) =>
     ipcRenderer.on('region:bounds', (_e, bounds: unknown) => fn(bounds)),
   pickRegion: (rect: unknown) => ipcRenderer.invoke('region:pick', rect),
