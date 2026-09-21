@@ -78,9 +78,19 @@ export class Overlay {
     return this.window
   }
 
-  /** Records the host app, then shows the panel without deactivating it. */
-  async show(): Promise<void> {
+  /**
+   * Records which app the user was in. Called at the very start of a capture,
+   * before anything is taken — the capture needs the name, and the panel needs
+   * to know where to hand focus back to. Reading it later (when the panel
+   * shows) was too late: the capture had already been filed without it.
+   */
+  async recordHost(): Promise<void> {
     this.host = await this.readHost()
+  }
+
+  /** Shows the panel without deactivating the app underneath. */
+  async show(): Promise<void> {
+    if (!this.host) this.host = await this.readHost()
     const win = this.ensure()
     win.showInactive()
     win.focus()

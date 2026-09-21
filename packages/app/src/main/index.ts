@@ -296,6 +296,13 @@ if (process.argv.includes('--self-test')) {
         region ? `${region.kind} ${region.width}x${region.height}` : 'none',
       )
       check('its note was recorded', bundle.captures[1]?.note === 'console output', bundle.captures[1]?.note ?? '')
+      // The app the user was in is read before the shutter, so it is on the
+      // capture. It used to be read when the bar opened — after filing.
+      check(
+        'captures record the app the user was in',
+        bundle.captures.every((c) => typeof c.app === 'string' && c.app.length > 0),
+        bundle.captures.map((c) => c.app ?? '(none)').join(' | '),
+      )
       check(
         'the retried capture filed under the note typed during the failure',
         bundle.captures.some((c) => c.note === 'note typed during failure'),

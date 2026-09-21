@@ -81,6 +81,10 @@ export class CaptureSession {
   async capture(intent: CaptureIntent): Promise<void> {
     if (this.overlay.isVisible() || this.regionOverlay.isVisible()) return
 
+    // Before anything else: which app was the user in? The capture is filed
+    // with this name, and focus is handed back to it afterwards.
+    await this.overlay.recordHost()
+
     if (intent === 'region') {
       await this.regionOverlay.show()
       return
