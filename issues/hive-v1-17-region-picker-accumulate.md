@@ -58,8 +58,8 @@ from `⌫` and becomes redundant once another letter can extend the selection.
 
 - [ ] `⌥3`, press `Q` then `E`, `⏎` — the capture is the top third of the screen, full width.
 - [ ] `⌥3`, press `S`, `␣`, `D`, `⏎` — a small rectangle right of centre.
-- [ ] While picking, the area inside the frame is at full brightness and readable; only the outside is dimmed.
-- [ ] Open a captured region in Preview: **no dim wash, grid lines or letters are baked into the image.**
+- [x] While picking, the area inside the frame is at full brightness and readable; only the outside is dimmed. **Measured by `--leak-test`: 1.19% off-colour inside the selection (the grid letter), 100% dimmed outside.**
+- [x] No dim wash, grid lines or letters are baked into the image. **Measured by `--leak-test`: 0.00% off-colour in the real capture, against a 49.31% positive control with the picker on screen.**
 - [ ] `⌫` steps back through marks and descents in the order they were made.
 
 ## Notes
@@ -77,6 +77,21 @@ from `⌫` and becomes redundant once another letter can extend the selection.
   The self-test had been failing for exactly this reason: the picker was still the visible
   window when the bar came up, so the test typed the note *into the picker*. A key-by-key
   trace of both windows made that unambiguous.
+
+### A regression caught by the positive control
+
+The first leak-test run reported the overlay as **100%** off-colour with only `Q` marked — too
+strong, because most of the rectangle should have shown the backdrop through the spotlight.
+Cause: fixing the Catalogue had given the page `<body>` an opaque background, and every surface
+loads the same page. **The "transparent" picker had become a solid sheet over the screen** —
+the exact opposite of what the user had just asked for. Captures stayed clean (the picker hides
+first), which is why nothing else noticed. Body is transparent again; surfaces that want a
+background set it on their own root.
+
+The test is deliberately deterministic: it paints a solid-colour backdrop it controls, so the
+result cannot depend on what else is on the user's screen. An earlier version counted
+honey-coloured pixels on the live display and could not tell the overlay's orange from orange
+that was genuinely there — it was discarded rather than trusted.
 
 ## Blocked by
 

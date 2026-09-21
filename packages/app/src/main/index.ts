@@ -339,3 +339,125 @@ if (process.argv.includes('--self-test')) {
     app.quit()
   })
 }
+
+/**
+ * Dev-only: proves the region picker is never baked into a capture.
+ *
+ * Puts a solid-colour window on screen, then compares three shots of the same
+ * rectangle: the bare backdrop, the real hide-then-capture path, and the picker
+ * deliberately on screen. The real capture must match the bare backdrop.
+ */
+if (process.argv.includes('--leak-test')) {
+  void app.whenReady().then(async () => {
+    const { offColourFraction } = await import('./overlayDetector.ts')
+    const { BundleStore, defaultBundleRoot } = await import('@hiveannotate/core')
+    const { execFile: ef } = await import('node:child_process')
+    const { promisify: pf } = await import('node:util')
+    const shoot = pf(ef)
+    const wait = (ms: number) => new Promise((r) => setTimeout(r, ms))
+    const BLUE = { r: 16, g: 96, b: 240 }
+
+    // The backdrop: a flat colour we control, so nothing else on the user's
+    // display can make or break the result.
+    const backdrop = new BrowserWindow({
+      x: 120, y: 140, width: 900, height: 300,
+      frame: false, hasShadow: false, resizable: false, show: false,
+      backgroundColor: '#1060F0',
+    })
+    backdrop.setAlwaysOnTop(true, 'floating')
+    void backdrop.loadURL('data:text/html,<body style="margin:0;background:%231060F0"></body>')
+    backdrop.showInactive()
+    await wait(1500)
+
+    // Inset from the edges so window chrome and antialiasing stay out of it.
+    const RECT = { x: 160, y: 180, width: 820, height: 220 }
+    const R = `${RECT.x},${RECT.y},${RECT.width},${RECT.height}`
+    const lines: string[] = []
+    const report = (label: string, pass: boolean, detail: string) => {
+      const line = `${pass ? 'PASS' : 'FAIL'}  ${label} — ${detail}`
+      lines.push(line)
+      console.log(line)
+    }
+    const pct = (n: number) => `${(n * 100).toFixed(2)}%`
+
+    // 1. The bare backdrop.
+    await shoot('screencapture', ['-x', '-R', R, '/tmp/hive-leak-bare.png'])
+    const bare = await offColourFraction('/tmp/hive-leak-bare.png', BLUE)
+
+    // 2. Positive control: picker on screen with q marked, so the spotlight's
+    //    dim panels cover most of the rectangle.
+    await session?.capture('region')
+    await wait(1500)
+    const picker = BrowserWindow.getAllWindows().find((w) => w.isVisible() && w !== backdrop)
+    if (picker) {
+      picker.webContents.sendInputEvent({ type: 'keyDown', keyCode: 'q' })
+      picker.webContents.sendInputEvent({ type: 'char', keyCode: 'q' })
+      picker.webContents.sendInputEvent({ type: 'keyUp', keyCode: 'q' })
+    }
+    await wait(600)
+    await shoot('screencapture', ['-x', '-R', R, '/tmp/hive-leak-overlay.png'])
+    const withOverlay = await offColourFraction('/tmp/hive-leak-overlay.png', BLUE)
+
+    // See-through, measured. With q marked, the selection is the top-left
+    // ninth (0,0 → 600,390). Inside it the spotlight must be a clear hole —
+    // the backdrop visible, bar the q letter. Outside it must be dimmed.
+    await shoot('screencapture', ['-x', '-R', '160,180,400,200', '/tmp/hive-leak-inside.png'])
+    await shoot('screencapture', ['-x', '-R', '640,180,340,220', '/tmp/hive-leak-outside.png'])
+    const inside = await offColourFraction('/tmp/hive-leak-inside.png', BLUE)
+    const outside = await offColourFraction('/tmp/hive-leak-outside.png', BLUE)
+
+    // 3. The real path: the picker is still up; pick exactly RECT, which runs
+    //    the production hide-then-capture sequence.
+    if (picker) {
+      await picker.webContents.executeJavaScript(`window.hive.pickRegion(${JSON.stringify(RECT)})`)
+    }
+    await wait(1800)
+    const bar = BrowserWindow.getAllWindows().find(
+      (w) => w.isVisible() && w !== backdrop && w !== picker,
+    )
+    if (bar) {
+      for (const ch of 'leak probe') {
+        bar.webContents.sendInputEvent({ type: 'keyDown', keyCode: ch })
+        bar.webContents.sendInputEvent({ type: 'char', keyCode: ch })
+        bar.webContents.sendInputEvent({ type: 'keyUp', keyCode: ch })
+      }
+      await wait(300)
+      bar.webContents.sendInputEvent({ type: 'keyDown', keyCode: 'Return' })
+      bar.webContents.sendInputEvent({ type: 'keyUp', keyCode: 'Return' })
+      await wait(1800)
+    }
+
+    let viaPicker = -1
+    const store = new BundleStore(defaultBundleRoot())
+    for (const summary of await store.listBundles()) {
+      const bundle = await store.getBundle(summary.id)
+      const shot = bundle.captures.find((c) => c.note === 'leak probe')
+      if (shot) viaPicker = await offColourFraction(`${defaultBundleRoot()}/${bundle.id}/${shot.file}`, BLUE)
+    }
+
+    report('the bare backdrop is clean', bare < 0.01, `${pct(bare)} off-colour`)
+    report('positive control: the overlay is detectable', withOverlay > 0.05, `${pct(withOverlay)} off-colour with the picker on screen`)
+    report(
+      'the picker is see-through inside the selection',
+      inside < 0.15,
+      `${pct(inside)} off-colour inside (only the grid letter should show)`,
+    )
+    report(
+      'the picker dims outside the selection',
+      outside > 0.5,
+      `${pct(outside)} off-colour outside`,
+    )
+    report('the real capture was produced', viaPicker >= 0, viaPicker >= 0 ? 'found' : 'no capture filed')
+    report(
+      'the overlay is NOT baked into the real capture',
+      viaPicker >= 0 && viaPicker < 0.01,
+      `${pct(viaPicker)} off-colour (bare ${pct(bare)}, overlay ${pct(withOverlay)})`,
+    )
+
+    const failed = lines.filter((l) => l.startsWith('FAIL')).length
+    console.log(`\nLEAK-TEST: ${lines.length - failed}/${lines.length} passed`)
+    console.log(failed ? 'LEAK-TEST FAIL' : 'LEAK-TEST PASS')
+    backdrop.destroy()
+    app.quit()
+  })
+}
