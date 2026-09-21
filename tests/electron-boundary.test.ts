@@ -4,7 +4,9 @@ import { dirname, resolve } from 'node:path'
 import { detectElectronImports, scanTree } from '../tools/electron-import-guard.ts'
 
 const here = dirname(fileURLToPath(import.meta.url))
-const coreSrc = resolve(here, '../packages/core/src')
+// Every package that must survive without Electron. packages/mcp is spawned
+// by an agent's client as a bare Node process; packages/core is what it loads.
+const ELECTRON_FREE = ['core', 'mcp'] as const
 
 describe('the guard itself detects Electron imports', () => {
   // A guard that silently detects nothing is worse than no guard: it would
@@ -35,9 +37,9 @@ describe('the guard itself detects Electron imports', () => {
   })
 })
 
-describe('packages/core is importable without Electron', () => {
+describe.each(ELECTRON_FREE)('packages/%s is importable without Electron', (pkg) => {
   it('has no Electron import anywhere in its source', async () => {
-    const violations = await scanTree(coreSrc)
+    const violations = await scanTree(resolve(here, `../packages/${pkg}/src`))
     expect(violations).toEqual([])
   })
 })
