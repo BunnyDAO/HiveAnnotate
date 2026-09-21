@@ -11,5 +11,13 @@ export type {
   NewCapture,
 } from './bundleStore.ts'
 export { defaultBundleRoot } from './bundleRoot.ts'
+export {
+  AdapterRegistry,
+  HandoffError,
+  bundlePointer,
+  createClipboardAdapter,
+  createFolderAdapter,
+} from './handoff.ts'
+export type { HandoffAdapter, HandoffTarget } from './handoff.ts'
 export { renderBundleMarkdown } from './renderBundle.ts'
 export { slugify } from './slugify.ts'

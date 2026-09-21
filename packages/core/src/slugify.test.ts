@@ -35,10 +35,24 @@ describe('slugify', () => {
     expect(slugify('  ---weird!!!  spacing---  ')).toBe('weird-spacing')
   })
 
-  it('truncates long notes without leaving a trailing hyphen', () => {
+  it('cuts long notes at a word boundary, never mid-word', () => {
     const slug = slugify('the sidebar collapses the very moment that the invite modal mounts itself')
-    expect(slug.length).toBeLessThanOrEqual(60)
+    expect(slug).toBe('the-sidebar-collapses-the-very-moment')
+    expect(slug.length).toBeLessThanOrEqual(40)
     expect(slug).not.toMatch(/-$/)
+  })
+
+  it('keeps a short note whole', () => {
+    expect(slugify('Sidebar Collapses When The Modal Opens')).toBe(
+      'sidebar-collapses-when-the-modal-opens',
+    )
+  })
+
+  it('still yields something when the very first word is over the cap', () => {
+    const slug = slugify('supercalifragilisticexpialidociousandthensomemore trouble')
+    expect(slug).not.toBe('')
+    expect(slug.length).toBeLessThanOrEqual(40)
+    expect(slug).toMatch(/^[a-z0-9][a-z0-9-]*$/)
   })
 
   it('never produces a path separator or a dot segment', () => {

@@ -2,7 +2,7 @@
 id: hive-v1-09
 title: AdapterRegistry — one destination interface, folder-reveal + clipboard pointer
 type: AFK
-status: open
+status: done
 blocked_by: [hive-v1-01, hive-v1-04]
 parent: docs/prd/hiveannotate-v1.md
 ---
@@ -25,12 +25,23 @@ already failed** and that is a design regression, not an implementation detail.
 
 ## Acceptance criteria
 
-- [ ] Both adapters are registered and invoked purely through the interface, with no destination-specific branching in the core. **(mandatory)**
-- [ ] Reveal opens the correct Bundle directory.
-- [ ] The clipboard pointer is plain text, is a single line, and contains no image data. **(mandatory)**
-- [ ] The pointer round-trips: the id it names resolves to exactly that Bundle via BundleStore. **(mandatory)**
-- [ ] A third, test-only adapter can be added and exercised without modifying any core module. **(mandatory)**
-- [ ] An adapter that throws does not take down the app or lose the Bundle.
+- [x] Both adapters are registered and invoked purely through the interface, with no destination-specific branching in the core. **(mandatory)**
+- [x] Reveal opens the correct Bundle directory.
+- [x] The clipboard pointer is plain text, is a single line, and contains no image data. **(mandatory)**
+- [x] The pointer round-trips: the id it names resolves to exactly that Bundle via BundleStore. **(mandatory)**
+- [x] A third, test-only adapter can be added and exercised without modifying any core module. **(mandatory)**
+- [x] An adapter that throws does not take down the app or lose the Bundle.
+
+## Notes
+
+- Platform capabilities are **injected, not imported**: `createFolderAdapter({ reveal })` and
+  `createClipboardAdapter({ writeText })`. That is what keeps the adapters in core (Electron-free)
+  and fully testable; `packages/app/src/main/handoff.ts` is the only place Electron meets them.
+- The agnostic claim is made mechanical by a test that registers an invented `carrier-pigeon`
+  adapter and exercises it with no change to any core module.
+- A failing adapter throws `HandoffError` naming which destination failed, so the UI can say so.
+  Nothing in handoff mutates stored state, so a failed handoff costs the handoff and never the
+  Bundle — asserted by rereading the bundle after a failure.
 
 ## Blocked by
 
