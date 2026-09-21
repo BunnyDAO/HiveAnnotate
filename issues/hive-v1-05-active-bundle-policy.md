@@ -2,7 +2,7 @@
 id: hive-v1-05
 title: ActiveBundlePolicy — staleness as a pure, clock-injected function
 type: AFK
-status: open
+status: done
 blocked_by: [hive-v1-01]
 parent: docs/prd/hiveannotate-v1.md
 ---
@@ -23,13 +23,24 @@ agent reads a Bundle that lies about itself.
 
 ## Acceptance criteria
 
-- [ ] No Active Bundle → opens new.
-- [ ] Active Bundle with a recent Capture → appends.
-- [ ] Active Bundle whose last Capture is older than the threshold → opens new.
-- [ ] The exact boundary is specified and tested: a Capture at precisely the threshold resolves deterministically, and the test asserts which side it falls on. **(mandatory)**
-- [ ] Full truth table covered by tests with an injected clock; no test depends on wall-clock time or sleeps. **(mandatory)**
-- [ ] The threshold is a single named constant, changeable in one edit.
-- [ ] A clock that moves backwards (NTP correction, sleep/wake) does not produce a negative age or an unhandled state. **(mandatory)**
+- [x] No Active Bundle → opens new.
+- [x] Active Bundle with a recent Capture → appends.
+- [x] Active Bundle whose last Capture is older than the threshold → opens new.
+- [x] The exact boundary is specified and tested: a Capture at precisely the threshold resolves deterministically, and the test asserts which side it falls on. **(mandatory)**
+- [x] Full truth table covered by tests with an injected clock; no test depends on wall-clock time or sleeps. **(mandatory)**
+- [x] The threshold is a single named constant, changeable in one edit.
+- [x] A clock that moves backwards (NTP correction, sleep/wake) does not produce a negative age or an unhandled state. **(mandatory)**
+
+## Notes
+
+- The boundary is pinned: at **exactly** the threshold the Bundle is stale. "20 minutes" is
+  ambiguous at the instant itself, and an unspecified boundary is where an off-by-one quietly
+  mis-files work.
+- A non-monotonic clock (NTP correction, sleep/wake) or an invalid timestamp falls through to
+  **append**, never to a split. Neither is the user's doing, and scattering their evidence is
+  a worse outcome than holding one Bundle open slightly too long.
+- The destination carries a `reason`, because the capture bar has to tell the user it opened a
+  new Bundle rather than appending. That makes it part of the contract, not a detail.
 
 ## Blocked by
 
