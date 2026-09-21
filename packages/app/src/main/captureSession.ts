@@ -143,8 +143,13 @@ export class CaptureSession {
     if (intent === 'screen') return { kind: 'screen' }
     const located = await this.locator.frontmost()
     if (!located.ok) {
-      console.log(`[capture] no window to capture: ${located.reason}`)
-      return null
+      // The user pressed capture; they get a capture. Doing nothing here was a
+      // silent failure — the chord fired and no bar appeared, which looks
+      // exactly like the app being broken. The common cause is HiveAnnotate
+      // itself being frontmost (just launched, or its menu was clicked), so
+      // the whole screen is the honest fallback.
+      console.log(`[capture] no window to capture (${located.reason}) — capturing the screen instead`)
+      return { kind: 'screen' }
     }
     return { kind: 'window', windowId: located.window.windowId }
   }
