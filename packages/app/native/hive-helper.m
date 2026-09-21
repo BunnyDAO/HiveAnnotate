@@ -91,7 +91,26 @@ static int screenPermission(BOOL request) {
 // There is no app-side workaround — the hotkey simply never arrives — so the
 // only honest response is to tell the user why nothing happened.
 static int secureInput(void) {
-  emit(@{@"ok": @YES, @"secureInput": IsSecureEventInputEnabled() ? @YES : @NO});
+  BOOL on = IsSecureEventInputEnabled();
+  NSMutableDictionary *out = [@{@"ok": @YES, @"secureInput": on ? @YES : @NO} mutableCopy];
+
+  // Name the app responsible. "Hotkeys blocked" tells the user nothing they
+  // can act on; "blocked by 1Password" tells them exactly what to close.
+  if (on) {
+    CFDictionaryRef session = CGSessionCopyCurrentDictionary();
+    if (session) {
+      NSNumber *pid = ((__bridge NSDictionary *)session)[@"kCGSSessionSecureInputPID"];
+      if (pid) {
+        out[@"pid"] = pid;
+        NSRunningApplication *holder =
+            [NSRunningApplication runningApplicationWithProcessIdentifier:pid.intValue];
+        if (holder.localizedName) out[@"app"] = holder.localizedName;
+      }
+      CFRelease(session);
+    }
+  }
+
+  emit(out);
   return 0;
 }
 

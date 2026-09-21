@@ -7,7 +7,7 @@ import {
   registerChords,
   unavailableChords,
 } from '@hiveannotate/core'
-import type { CaptureIntent, ChordRegistration } from '@hiveannotate/core'
+import type { CaptureIntent, ChordRegistration, SecureInputState } from '@hiveannotate/core'
 import { helperPath } from './helper.ts'
 
 const run = promisify(execFile)
@@ -15,7 +15,7 @@ const run = promisify(execFile)
 export interface HotkeyService {
   registrations: ChordRegistration[]
   unavailable: ChordRegistration[]
-  onSecureInputChange: (listener: (blocked: boolean) => void) => () => void
+  onSecureInputChange: (listener: (state: SecureInputState) => void) => () => void
   dispose: () => void
 }
 
@@ -36,7 +36,11 @@ export function startHotkeys(onIntent: (intent: CaptureIntent) => void): HotkeyS
   const watcher = new SecureInputWatcher({
     probe: async () => {
       const { stdout } = await run(helperPath(), ['secure-input'])
-      return (JSON.parse(stdout) as { secureInput: boolean }).secureInput
+      const parsed = JSON.parse(stdout) as { secureInput: boolean; app?: string }
+      return {
+        enabled: parsed.secureInput,
+        ...(parsed.app ? { holder: parsed.app } : {}),
+      }
     },
   })
   watcher.start()

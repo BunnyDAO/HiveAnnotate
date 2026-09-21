@@ -27,6 +27,8 @@ let tray: Tray | null = null
 let aboutWindow: BrowserWindow | null = null
 let hotkeys: HotkeyService | null = null
 let secureInputBlocking = false
+/** The app macOS blames for Secure Input, when it is on. */
+let secureInputHolder: string | null = null
 
 function showAbout(): void {
   if (aboutWindow && !aboutWindow.isDestroyed()) {
@@ -75,7 +77,9 @@ function renderTrayMenu(): void {
       ...(secureInputBlocking
         ? [
             {
-              label: 'Hotkeys blocked — a password field has secure input on',
+              label: secureInputHolder
+                ? `Hotkeys blocked by ${secureInputHolder} — close its password prompt`
+                : 'Hotkeys blocked — a password field has secure input on',
               enabled: false,
             },
             { type: 'separator' as const },
@@ -93,7 +97,9 @@ function renderTrayMenu(): void {
   // The hotkey never arrives while Secure Input is on, so the bar cannot
   // appear to explain itself. The menu bar is the only surface left.
   tray.setToolTip(
-    secureInputBlocking ? `${APP_NAME} — hotkeys blocked by secure input` : APP_NAME,
+    secureInputBlocking
+      ? `${APP_NAME} — hotkeys blocked${secureInputHolder ? ` by ${secureInputHolder}` : ''}`
+      : APP_NAME,
   )
 }
 
@@ -127,9 +133,12 @@ void app.whenReady().then(() => {
     console.log(`[chord] ${chord.accelerator} (${chord.intent}): ${registered ? 'registered' : 'TAKEN by another app'}`)
   }
 
-  hotkeys.onSecureInputChange((blocked) => {
-    secureInputBlocking = blocked
-    console.log(`[secure-input] ${blocked ? 'BLOCKING hotkeys' : 'clear'}`)
+  hotkeys.onSecureInputChange((state) => {
+    secureInputBlocking = state.enabled
+    secureInputHolder = state.holder ?? null
+    console.log(
+      `[secure-input] ${state.enabled ? `BLOCKING hotkeys${state.holder ? ` (held by ${state.holder})` : ''}` : 'clear'}`,
+    )
     renderTrayMenu()
   })
 
