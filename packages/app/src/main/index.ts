@@ -190,6 +190,16 @@ if (process.argv.includes('--self-test')) {
     const bar = visible()
     check('screen: bar appeared', Boolean(bar))
     if (bar) {
+      // Nothing is active yet, so this capture starts a new bundle — which
+      // needs a name the user types. Enter on the note moves to the name field.
+      type(bar, [...'sidebar bug'])
+      await wait(300)
+      type(bar, ['Return'])
+      await wait(500)
+      const focusedField: string = await bar.webContents.executeJavaScript('document.activeElement?.id ?? ""')
+      const savedYet = (await new BundleStore(defaultBundleRoot()).listBundles()).length
+      check('new bundle: Enter on the note asks for a name instead of saving',
+        focusedField === 'bundle-name' && savedYet === 0, `focus=${focusedField}, bundles=${savedYet}`)
       type(bar, [...'sidebar bug'])
       await wait(300)
       type(bar, ['Return'])
@@ -473,17 +483,20 @@ if (process.argv.includes('--self-test')) {
         )
         check('chips: New bundle is offered, last in the row', /New bundle/.test(text) && /New bundle/.test(chips.at(-1) ?? ''),
           chips.join(' | '))
-        type(w, [...'a separate problem'])
+        type(w, [...'the note, not the name'])
         await wait(300)
         shiftTab(w) // from the default, one Shift+Tab wraps to "+ New bundle"
         await wait(400)
         const nameShown: string = await w.webContents.executeJavaScript('document.querySelector("#bundle-name")?.value ?? "(no field)"')
-        check('chips: choosing New bundle shows a name field filled from the note', nameShown === 'a separate problem', nameShown)
+        // The user asked for this explicitly: the name must not echo the note.
+        check('chips: New bundle shows an empty name field, not a copy of the note', nameShown === '', JSON.stringify(nameShown))
+        type(w, [...'a separate problem'])
+        await wait(300)
         type(w, ['Return'])
         await wait(1800)
       }
       let created = await newest(before)
-      check('chips: Enter accepts the name from the note', created?.intent === 'a separate problem', created?.id ?? 'none created')
+      check('chips: the typed name names the bundle', created?.intent === 'a separate problem', created?.id ?? 'none created')
 
       // 2. Type a different name.
       before = await chipStore.listBundles()
@@ -495,7 +508,7 @@ if (process.argv.includes('--self-test')) {
         await wait(300)
         shiftTab(w)
         await wait(400)
-        type(w, [...'To do Bundle 4']) // replaces the selected prefill
+        type(w, [...'To do Bundle 4'])
         await wait(300)
         type(w, ['Return'])
         await wait(1800)
@@ -515,7 +528,10 @@ if (process.argv.includes('--self-test')) {
       w = bar()
       let refusal = ''
       if (w) {
-        shiftTab(w) // New bundle, with no note to borrow a name from
+        // A note is typed but no name: the note must not stand in for it.
+        type(w, [...'a note but no name'])
+        await wait(300)
+        shiftTab(w)
         await wait(400)
         type(w, ['Return'])
         await wait(800)
@@ -630,14 +646,25 @@ if (process.argv.includes('--leak-test')) {
       (w) => w.isVisible() && w !== backdrop && w !== picker,
     )
     if (bar) {
-      for (const ch of 'leak probe') {
-        bar.webContents.sendInputEvent({ type: 'keyDown', keyCode: ch })
-        bar.webContents.sendInputEvent({ type: 'char', keyCode: ch })
-        bar.webContents.sendInputEvent({ type: 'keyUp', keyCode: ch })
+      const typeInto = (text: string) => {
+        for (const ch of text) {
+          bar.webContents.sendInputEvent({ type: 'keyDown', keyCode: ch })
+          bar.webContents.sendInputEvent({ type: 'char', keyCode: ch })
+          bar.webContents.sendInputEvent({ type: 'keyUp', keyCode: ch })
+        }
       }
+      const enter = () => {
+        bar.webContents.sendInputEvent({ type: 'keyDown', keyCode: 'Return' })
+        bar.webContents.sendInputEvent({ type: 'keyUp', keyCode: 'Return' })
+      }
+      // A fresh home has no active bundle: the note, then the required name.
+      typeInto('leak probe')
       await wait(300)
-      bar.webContents.sendInputEvent({ type: 'keyDown', keyCode: 'Return' })
-      bar.webContents.sendInputEvent({ type: 'keyUp', keyCode: 'Return' })
+      enter()
+      await wait(500)
+      typeInto('leak probe')
+      await wait(300)
+      enter()
       await wait(1800)
     }
 

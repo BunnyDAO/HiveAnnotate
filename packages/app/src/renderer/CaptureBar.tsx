@@ -43,9 +43,8 @@ export function CaptureBar(): React.JSX.Element {
   const [note, setNote] = useState('')
   /** Index into `choices` of the chip that Enter will file into. */
   const [selected, setSelected] = useState(0)
-  /** The new bundle's name, once the user has typed their own. */
+  /** The new bundle's name. Typed by the user — never copied from the note. */
   const [bundleName, setBundleName] = useState('')
-  const [nameTouched, setNameTouched] = useState(false)
   const nameField = useRef<HTMLInputElement>(null)
   const [error, setError] = useState<string | null>(null)
   const [failure, setFailure] = useState<FailurePayload | null>(null)
@@ -62,7 +61,6 @@ export function CaptureBar(): React.JSX.Element {
         setNote('')
         setSelected(0)
         setBundleName('')
-        setNameTouched(false)
       }
       // Focused without a click: the whole premise is that you type immediately.
       requestAnimationFrame(() => field.current?.focus())
@@ -83,11 +81,12 @@ export function CaptureBar(): React.JSX.Element {
     : filingChoices({ kind: 'new' }, [])
   const current = choices[Math.min(selected, choices.length - 1)] ?? choices[0]!
 
-  // A new bundle always has a name. It starts as the note, so a good note
-  // costs nothing extra; typing in the field replaces it. Required: a new
-  // bundle cannot be saved with it empty.
+  // A new bundle needs a name the user types. It used to be prefilled from
+  // the note and mirrored it while typing; the user found that wrong — the
+  // note says what is broken, the name says which bucket it goes in.
+  // Required: a new bundle cannot be saved without one.
   const naming = current.isNew
-  const nameValue = nameTouched ? bundleName : note.trim()
+  const nameValue = bundleName
 
   /** Selects a chip and puts the cursor where the next keystroke belongs. */
   function select(index: number): void {
@@ -99,7 +98,6 @@ export function CaptureBar(): React.JSX.Element {
       // the note field is where typing goes.
       if (chosen?.isNew && !chosen.isDefault) {
         nameField.current?.focus()
-        nameField.current?.select()
       } else {
         field.current?.focus()
       }
@@ -270,7 +268,6 @@ export function CaptureBar(): React.JSX.Element {
             value={nameValue}
             onChange={(e) => {
               setBundleName(e.target.value)
-              setNameTouched(true)
               setError(null)
             }}
             onKeyDown={onKeyDown}
@@ -291,7 +288,7 @@ export function CaptureBar(): React.JSX.Element {
             }}
           />
           <span id="bundle-name-hint" style={{ fontSize: 11, color: dim, whiteSpace: 'nowrap' }}>
-            {nameTouched ? 'required' : 'from your note · type to rename'}
+            required
           </span>
         </div>
       )}
