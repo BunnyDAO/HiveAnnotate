@@ -2,7 +2,7 @@
 id: hive-v1-16
 title: Write the two deferred ADRs — pull-not-push, Electron over Swift
 type: AFK
-status: open
+status: done
 blocked_by: [hive-v1-02]
 parent: docs/prd/hiveannotate-v1.md
 ---
@@ -31,10 +31,10 @@ straight choice, which is a materially different decision.
 
 ## Acceptance criteria
 
-- [ ] Both ADRs exist under `docs/adr/`, numbered, following the repo's ADR format.
-- [ ] Each states the context, the decision, the alternatives actually considered, and the consequences — including the negative ones.
-- [ ] The Electron ADR reflects the real outcome of hive-v1-02, not the pre-spike assumption. **(mandatory)**
-- [ ] Neither ADR is edited later to hide a reversal — a superseding decision gets its own ADR.
+- [x] Both ADRs exist under `docs/adr/`, numbered, following the repo's ADR format.
+- [x] Each states the context, the decision, the alternatives actually considered, and the consequences — including the negative ones.
+- [x] The Electron ADR reflects the real outcome of hive-v1-02, not the pre-spike assumption. **(mandatory)**
+- [x] Neither ADR is edited later to hide a reversal — a superseding decision gets its own ADR.
 
 ## Blocked by
 
