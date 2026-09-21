@@ -3,7 +3,7 @@ import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { APP_NAME, BUNDLE_ID } from '@hiveannotate/core'
 import type { ChordAction } from '@hiveannotate/core'
-import { defaultBundleRoot } from '@hiveannotate/core'
+import { defaultBundleRoot, formatAccelerator } from '@hiveannotate/core'
 import { startHotkeys } from './hotkeys.ts'
 import { CaptureSession } from './captureSession.ts'
 import { Catalogue, registerCaptureProtocol } from './catalogue.ts'
@@ -60,39 +60,45 @@ function showAbout(): void {
 
 let catalogue: Catalogue | null = null
 
+/** The labels currently in the tray menu. Used by --self-test. */
+let lastTrayLabels: string[] = []
+function trayMenuLabels(): string[] {
+  return lastTrayLabels
+}
+
 function renderTrayMenu(): void {
   if (!tray) return
 
   const chordItems = (hotkeys?.registrations ?? []).map(({ chord, registered }) => ({
     label: registered
-      ? `${chord.label}   ${chord.accelerator}`
-      : `${chord.label}   — ${chord.accelerator} is taken by another app`,
+      ? `${chord.label}   ${formatAccelerator(chord.accelerator)}`
+      : `${chord.label}   — ${formatAccelerator(chord.accelerator)} is taken by another app`,
     enabled: false,
   }))
 
-  tray.setContextMenu(
-    Menu.buildFromTemplate([
-      { label: `${APP_NAME} — ${BUNDLE_ID}`, enabled: false },
-      { type: 'separator' },
-      ...(secureInputBlocking
-        ? [
-            {
-              label: secureInputHolder
-                ? `Hotkeys blocked by ${secureInputHolder} — close its password prompt`
-                : 'Hotkeys blocked — a password field has secure input on',
-              enabled: false,
-            },
-            { type: 'separator' as const },
-          ]
-        : []),
-      ...chordItems,
-      { type: 'separator' },
-      { label: 'Open Catalogue', click: () => catalogue?.open() },
-      { label: 'About', click: showAbout },
-      { type: 'separator' },
-      { label: 'Quit', role: 'quit' },
-    ]),
-  )
+  const template: Electron.MenuItemConstructorOptions[] = [
+    { label: `${APP_NAME} — ${BUNDLE_ID}`, enabled: false },
+    { type: 'separator' },
+    ...(secureInputBlocking
+      ? [
+          {
+            label: secureInputHolder
+              ? `Hotkeys blocked by ${secureInputHolder} — close its password prompt`
+              : 'Hotkeys blocked — a password field has secure input on',
+            enabled: false,
+          },
+          { type: 'separator' as const },
+        ]
+      : []),
+    ...chordItems,
+    { type: 'separator' },
+    { label: 'Open Catalogue', click: () => catalogue?.open() },
+    { label: 'About', click: showAbout },
+    { type: 'separator' },
+    { label: 'Quit', role: 'quit' },
+  ]
+  lastTrayLabels = template.map((item) => item.label ?? '').filter(Boolean)
+  tray.setContextMenu(Menu.buildFromTemplate(template))
 
   // The hotkey never arrives while Secure Input is on, so the bar cannot
   // appear to explain itself. The menu bar is the only surface left.
@@ -401,6 +407,12 @@ if (process.argv.includes('--self-test')) {
       const find = (intent: string) => regs.find((r) => r.chord.intent === intent)
       check('chords: region picker is on Option+1', find('region')?.chord.accelerator === 'Alt+1' && Boolean(find('region')?.registered), '')
       check('chords: Option+4 opens the Catalogue', find('catalogue')?.chord.accelerator === 'Alt+4' && Boolean(find('catalogue')?.registered), '')
+      const labels = trayMenuLabels()
+      check(
+        'tray: shortcuts read as ⌥, never Alt',
+        labels.some((l) => l.includes('⌥1')) && !labels.some((l) => /\bAlt\b/.test(l)),
+        labels.filter((l) => /⌥|Alt/.test(l)).join(' | '),
+      )
     }
 
     const failed = results.filter((r) => r.startsWith('FAIL'))

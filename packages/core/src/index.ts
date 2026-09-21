@@ -46,6 +46,7 @@ export type {
   MacCaptureBackendOptions,
 } from './macos/captureBackend.ts'
 export { explainFailure } from './explainFailure.ts'
+export { formatAccelerator } from './formatAccelerator.ts'
 export type { FailureExplanation } from './explainFailure.ts'
 export { GRID_KEYS, RegionSelection } from './regionSelection.ts'
 export type { Rect } from './regionSelection.ts'
