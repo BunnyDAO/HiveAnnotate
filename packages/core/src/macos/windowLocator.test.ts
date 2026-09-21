@@ -24,7 +24,7 @@ async function fakeHelper(body: string): Promise<string> {
 describe('locating the frontmost window', () => {
   it('returns the window id and bounds', async () => {
     const helper = await fakeHelper(
-      `echo '{"ok":true,"windowId":19860,"pid":63611,"app":"Google Chrome","x":0,"y":39,"width":1800,"height":1130}'`,
+      `echo '{"ok":true,"pid":63611,"app":"Google Chrome","windows":[{"windowId":19860,"x":0,"y":39,"width":1800,"height":1130}]}'`,
     )
 
     const result = await new WindowLocator(helper).frontmost()
@@ -80,17 +80,59 @@ describe('locating the frontmost window', () => {
 
   it('rejects a window with zero area instead of handing back an empty capture target', async () => {
     const helper = await fakeHelper(
-      `echo '{"ok":true,"windowId":1,"pid":2,"app":"X","x":0,"y":0,"width":0,"height":100}'`,
+      `echo '{"ok":true,"pid":2,"app":"X","windows":[{"windowId":1,"x":0,"y":0,"width":0,"height":100}]}'`,
     )
     const result = await new WindowLocator(helper).frontmost()
     expect(result).toMatchObject({ ok: false })
+  })
+
+  it('skips a status-bubble strip in front of the real window', async () => {
+    // Observed in the wild: Chrome's link-preview strip is 1772x22, sits at
+    // layer 0, and comes back *ahead* of the browser window. Capturing it
+    // instead would be silently wrong — a 22px sliver where a screenshot
+    // should be.
+    const helper = await fakeHelper(
+      `echo '{"ok":true,"pid":1,"app":"Google Chrome","windows":[` +
+        `{"windowId":23820,"x":-1,"y":1148,"width":1772,"height":22},` +
+        `{"windowId":19860,"x":0,"y":39,"width":1800,"height":1130}]}'`,
+    )
+
+    const result = await new WindowLocator(helper).frontmost()
+
+    expect(result.ok).toBe(true)
+    if (result.ok) expect(result.window.windowId).toBe(19860)
+  })
+
+  it('takes the frontmost window when several are substantial', async () => {
+    const helper = await fakeHelper(
+      `echo '{"ok":true,"pid":1,"app":"X","windows":[` +
+        `{"windowId":11,"x":0,"y":0,"width":900,"height":600},` +
+        `{"windowId":22,"x":0,"y":0,"width":1800,"height":1130}]}'`,
+    )
+    const result = await new WindowLocator(helper).frontmost()
+    expect(result.ok && result.window.windowId).toBe(11)
+  })
+
+  it('falls back to the largest when the app only has small windows', async () => {
+    const helper = await fakeHelper(
+      `echo '{"ok":true,"pid":1,"app":"X","windows":[` +
+        `{"windowId":11,"x":0,"y":0,"width":80,"height":40},` +
+        `{"windowId":22,"x":0,"y":0,"width":150,"height":100}]}'`,
+    )
+    const result = await new WindowLocator(helper).frontmost()
+    expect(result.ok && result.window.windowId).toBe(22)
+  })
+
+  it('reports no-window when the app has none at all', async () => {
+    const helper = await fakeHelper(`echo '{"ok":true,"pid":1,"app":"X","windows":[]}'`)
+    expect(await new WindowLocator(helper).frontmost()).toEqual({ ok: false, reason: 'no-window' })
   })
 })
 
 describe('the rectangle handed to screencapture', () => {
   it('is the window bounds in the order -R expects', async () => {
     const helper = await fakeHelper(
-      `echo '{"ok":true,"windowId":1,"pid":2,"app":"X","x":12,"y":34,"width":56,"height":78}'`,
+      `echo '{"ok":true,"pid":2,"app":"X","windows":[{"windowId":1,"x":12,"y":34,"width":56,"height":78}]}'`,
     )
     const result = await new WindowLocator(helper).frontmost()
 

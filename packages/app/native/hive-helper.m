@@ -15,6 +15,7 @@
 #import <Foundation/Foundation.h>
 #import <AppKit/AppKit.h>
 #import <CoreGraphics/CoreGraphics.h>
+#import <Carbon/Carbon.h>
 
 static void emit(NSDictionary *payload) {
   NSData *json = [NSJSONSerialization dataWithJSONObject:payload options:0 error:nil];
@@ -42,43 +43,34 @@ static int frontmost(pid_t excludePid) {
     return 0;
   }
 
-  NSDictionary *found = nil;
+  // Report every ordinary window of the frontmost app, front-to-back, and let
+  // the caller choose. Which one the user means is policy, not enumeration,
+  // and policy belongs where it can be tested.
+  NSMutableArray *candidates = [NSMutableArray array];
   for (NSDictionary *info in (__bridge NSArray *)windows) {
     NSNumber *ownerPid = info[(id)kCGWindowOwnerPID];
-    NSNumber *layer = info[(id)kCGWindowLayer];
     if (ownerPid.intValue != targetPid) continue;
-    // Layer 0 is an ordinary document window. Menu-bar items, panels, popovers
-    // and our own overlay all live above it, and capturing one of those instead
-    // of the user's window would be silently wrong.
-    if (layer.intValue != 0) continue;
+    // Layer 0 is an ordinary document window; menu-bar items, panels, popovers
+    // and our own overlay all sit above it.
+    if (((NSNumber *)info[(id)kCGWindowLayer]).intValue != 0) continue;
 
-    NSNumber *w = info[(id)kCGWindowBounds][@"Width"];
-    NSNumber *h = info[(id)kCGWindowBounds][@"Height"];
-    if (w.doubleValue < 1 || h.doubleValue < 1) continue;
-
-    found = info;
-    break;  // The list is front-to-back, so the first match is the frontmost.
+    NSDictionary *bounds = info[(id)kCGWindowBounds];
+    [candidates addObject:@{
+      @"windowId": info[(id)kCGWindowNumber],
+      @"x": bounds[@"X"],
+      @"y": bounds[@"Y"],
+      @"width": bounds[@"Width"],
+      @"height": bounds[@"Height"],
+    }];
   }
+  CFRelease(windows);
 
-  if (!found) {
-    CFRelease(windows);
-    emit(@{@"ok": @NO, @"reason": @"no-window"});
-    return 0;
-  }
-
-  NSDictionary *bounds = found[(id)kCGWindowBounds];
   emit(@{
     @"ok": @YES,
-    @"windowId": found[(id)kCGWindowNumber],
     @"pid": @(targetPid),
     @"app": front.localizedName ?: @"",
-    @"x": bounds[@"X"],
-    @"y": bounds[@"Y"],
-    @"width": bounds[@"Width"],
-    @"height": bounds[@"Height"],
+    @"windows": candidates,
   });
-
-  CFRelease(windows);
   return 0;
 }
 
@@ -92,10 +84,19 @@ static int screenPermission(BOOL request) {
   return 0;
 }
 
+// Secure Input: while a password field is focused (or 1Password and friends
+// are active), macOS withholds key events from every other app system-wide.
+// There is no app-side workaround — the hotkey simply never arrives — so the
+// only honest response is to tell the user why nothing happened.
+static int secureInput(void) {
+  emit(@{@"ok": @YES, @"secureInput": IsSecureEventInputEnabled() ? @YES : @NO});
+  return 0;
+}
+
 int main(int argc, const char *argv[]) {
   @autoreleasepool {
     if (argc < 2) {
-      emit(@{@"ok": @NO, @"reason": @"usage: hive-helper frontmost|screen-permission"});
+      emit(@{@"ok": @NO, @"reason": @"usage: hive-helper frontmost|screen-permission|secure-input"});
       return 2;
     }
 
@@ -114,6 +115,8 @@ int main(int argc, const char *argv[]) {
       }
       return screenPermission(request);
     }
+
+    if (strcmp(argv[1], "secure-input") == 0) return secureInput();
 
     emit(@{@"ok": @NO, @"reason": @"unknown-command"});
     return 2;

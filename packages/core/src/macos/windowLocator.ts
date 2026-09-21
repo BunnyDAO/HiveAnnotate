@@ -32,8 +32,42 @@ export type LocateResult =
   | { ok: true; window: FrontmostWindow }
   | { ok: false; reason: string }
 
-interface HelperOk extends FrontmostWindow {
+interface HelperWindow {
+  windowId: number
+  x: number
+  y: number
+  width: number
+  height: number
+}
+
+interface HelperOk {
   ok: true
+  pid: number
+  app: string
+  /** The app's ordinary windows, front to back. */
+  windows: HelperWindow[]
+}
+
+/**
+ * Below this in either dimension a window is a status bubble, a tooltip or a
+ * find bar rather than the thing the user is looking at. Observed in the wild:
+ * Chrome's link-preview strip is 1772x22 and sits in front of the real window,
+ * so area alone is not enough to tell them apart.
+ */
+const MIN_WIDTH = 160
+const MIN_HEIGHT = 120
+
+function chooseWindow(windows: HelperWindow[]): HelperWindow | null {
+  const usable = windows.filter((w) => w.width > 0 && w.height > 0)
+  if (usable.length === 0) return null
+
+  // Front to back, so the first window that looks like a real one wins.
+  const substantial = usable.find((w) => w.width >= MIN_WIDTH && w.height >= MIN_HEIGHT)
+  if (substantial) return substantial
+
+  // Everything is small: the app may genuinely only have a small utility
+  // window. Returning the biggest beats returning nothing.
+  return usable.reduce((a, b) => (a.width * a.height >= b.width * b.height ? a : b))
 }
 interface HelperFail {
   ok: false
@@ -69,13 +103,22 @@ export class WindowLocator {
 
     if (!parsed.ok) return { ok: false, reason: parsed.reason ?? 'unknown' }
 
-    const { windowId, pid, app, x, y, width, height } = parsed
+    const chosen = chooseWindow(parsed.windows ?? [])
     // A zero-area window is not something screencapture can photograph, and
-    // handing it on would surface as a mystery empty capture.
-    if (!(width > 0 && height > 0)) {
-      return { ok: false, reason: `window ${windowId} has no area (${width}x${height})` }
-    }
+    // handing one on would surface later as a mystery empty capture.
+    if (!chosen) return { ok: false, reason: 'no-window' }
 
-    return { ok: true, window: { windowId, pid, app, x, y, width, height } }
+    return {
+      ok: true,
+      window: {
+        windowId: chosen.windowId,
+        pid: parsed.pid,
+        app: parsed.app,
+        x: chosen.x,
+        y: chosen.y,
+        width: chosen.width,
+        height: chosen.height,
+      },
+    }
   }
 }

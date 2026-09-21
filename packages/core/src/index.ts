@@ -21,6 +21,14 @@ export {
   createFolderAdapter,
 } from './handoff.ts'
 export type { HandoffAdapter, HandoffTarget } from './handoff.ts'
+export {
+  DEFAULT_CHORDS,
+  registerChords,
+  unavailableChords,
+} from './hotkeys.ts'
+export type { CaptureIntent, Chord, ChordRegistration } from './hotkeys.ts'
+export { SecureInputWatcher } from './macos/secureInput.ts'
+export type { SecureInputWatcherOptions } from './macos/secureInput.ts'
 export { MacCaptureBackend } from './macos/captureBackend.ts'
 export type {
   CaptureBackend,
