@@ -1,0 +1,18 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "resolveJsonModule": true,
+    "verbatimModuleSyntax": true,
+    "noEmit": true,
+    // Explicit .ts specifiers. Packages are consumed as source, and Node's
+    // native type stripping resolves specifiers literally rather than
+    // rewriting .js -> .ts the way bundlers do.
+    "allowImportingTsExtensions": true
+  }
+}

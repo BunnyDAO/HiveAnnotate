@@ -1,0 +1,9 @@
+node_modules/
+dist/
+out/
+release/
+*.tsbuildinfo
+.DS_Store
+
+# Valkyrie per-repo workflow state
+.claude/valk/

@@ -1,0 +1,27 @@
+{
+  "name": "@hiveannotate/app",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "out/main/index.js",
+  "scripts": {
+    "dev": "electron-vite dev",
+    "build": "electron-vite build",
+    "pack": "electron-vite build && electron-builder --dir --config ../../electron-builder.config.mjs"
+  },
+  "devDependencies": {
+    "@swc/core": "^1.10.1",
+    "@types/react": "^19.0.1",
+    "@types/react-dom": "^19.0.1",
+    "@vitejs/plugin-react": "^5.0.0",
+    "electron": "44.4.3",
+    "electron-builder": "^26.0.0",
+    "electron-vite": "^5.0.0",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "vite": "^6.0.0",
+    "@hiveannotate/core": "*"
+  },
+  "description": "Keyboard-first screenshot capture with instant annotation, catalogued into bundles.",
+  "author": "Wenrwa"
+}
