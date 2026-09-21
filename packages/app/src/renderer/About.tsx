@@ -1,8 +1,4 @@
-declare global {
-  interface Window {
-    hive?: { appName: string; bundleId: string }
-  }
-}
+import './bridge.ts'
 
 export function About(): React.JSX.Element {
   const info = window.hive

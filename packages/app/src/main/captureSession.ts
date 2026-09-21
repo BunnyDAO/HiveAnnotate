@@ -1,0 +1,139 @@
+import { ipcMain } from 'electron'
+import {
+  ActiveBundleTracker,
+  AdapterRegistry,
+  BundleStore,
+  CaptureFlow,
+  MacCaptureBackend,
+  WindowLocator,
+  defaultActiveBundleRecord,
+  defaultBundleRoot,
+} from '@hiveannotate/core'
+import type { CaptureIntent, CaptureTarget, PendingCapture } from '@hiveannotate/core'
+import { helperPath } from './helper.ts'
+import { Overlay } from './overlay.ts'
+import { execFile } from 'node:child_process'
+import { promisify } from 'node:util'
+import { join } from 'node:path'
+import { tmpdir } from 'node:os'
+
+const run = promisify(execFile)
+
+/**
+ * Binds a capture intent to the overlay: take the picture, work out where it
+ * would go, show the bar, and file what the user types.
+ */
+export class CaptureSession {
+  private readonly overlay = new Overlay()
+  private readonly store: BundleStore
+  private readonly flow: CaptureFlow
+  private readonly locator = new WindowLocator(helperPath(), { excludePid: process.pid })
+  private pending: PendingCapture | null = null
+  private bundleIds: string[] = []
+
+  constructor(registry: AdapterRegistry) {
+    const root = defaultBundleRoot()
+    this.store = new BundleStore(root)
+
+    const tracker = new ActiveBundleTracker(defaultActiveBundleRecord(), {
+      bundleExists: async (id) => this.store.getBundle(id).then(() => true, () => false),
+    })
+
+    this.flow = new CaptureFlow({
+      backend: new MacCaptureBackend({
+        screencapturePath: '/usr/sbin/screencapture',
+        isPermitted: async () => {
+          const { stdout } = await run(helperPath(), ['screen-permission'])
+          return (JSON.parse(stdout) as { granted: boolean }).granted
+        },
+        scratchDir: join(tmpdir(), 'hiveannotate'),
+      }),
+      store: this.store,
+      tracker,
+      registry,
+      now: () => new Date(),
+      bundleRoot: root,
+    })
+
+    this.wireIpc()
+  }
+
+  async capture(intent: CaptureIntent): Promise<void> {
+    if (this.overlay.isVisible()) return
+
+    const target = await this.targetFor(intent)
+    if (!target) return
+
+    const started = Date.now()
+    const begun = await this.flow.begin(target, this.overlay.hostApp() ?? undefined)
+
+    if (!begun.ok) {
+      // The failure-state bar is hive-v1-13; until then, say so honestly.
+      console.log(`[capture] failed: ${begun.reason}${begun.detail ? ` — ${begun.detail}` : ''}`)
+      return
+    }
+
+    this.pending = begun.pending
+    const open = (await this.store.listBundles()).filter((b) => b.status === 'open' && !b.damaged)
+    this.bundleIds = open.map((b) => b.id)
+
+    await this.overlay.show()
+    await this.overlay.send('capture:pending', {
+      kind: begun.pending.kind,
+      app: this.overlay.hostApp(),
+      width: begun.pending.width,
+      height: begun.pending.height,
+      destination: begun.pending.destination,
+      bundles: open.map((b) => ({ id: b.id, intent: b.intent, captureCount: b.captureCount })),
+    })
+
+    console.log(`[capture] ${intent} — bar up in ${Date.now() - started}ms`)
+  }
+
+  private async targetFor(intent: CaptureIntent): Promise<CaptureTarget | null> {
+    if (intent === 'screen') return { kind: 'screen' }
+    if (intent === 'region') {
+      // The keyboard region picker is hive-v1-12. Until it exists, a region
+      // chord falls back to the full screen rather than doing nothing.
+      return { kind: 'screen' }
+    }
+
+    const located = await this.locator.frontmost()
+    if (!located.ok) {
+      console.log(`[capture] no window to capture: ${located.reason}`)
+      return null
+    }
+    return { kind: 'window', windowId: located.window.windowId }
+  }
+
+  private wireIpc(): void {
+    ipcMain.handle('capture:commit', async (_e, payload: { note: string; targetIndex: number; copyPointer: boolean }) => {
+      if (!this.pending) return null
+
+      const target =
+        payload.targetIndex === -1
+          ? ({ kind: 'new' } as const)
+          : payload.targetIndex === 0
+            ? ({ kind: 'active' } as const)
+            : ({ kind: 'bundle', id: this.bundleIds[payload.targetIndex - 1]! } as const)
+
+      const bundle = await this.flow.commit(this.pending, payload.note, {
+        target,
+        copyPointer: payload.copyPointer,
+      })
+
+      this.pending = null
+      await this.overlay.hide()
+      console.log(`[capture] filed into ${bundle.id} (${bundle.captures.length} captures)`)
+      return { id: bundle.id }
+    })
+
+    ipcMain.handle('capture:discard', async () => {
+      if (this.pending) await this.flow.discard(this.pending)
+      this.pending = null
+      await this.overlay.hide()
+      console.log('[capture] discarded')
+      return null
+    })
+  }
+}

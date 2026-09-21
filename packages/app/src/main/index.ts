@@ -4,6 +4,8 @@ import { fileURLToPath } from 'node:url'
 import { APP_NAME, BUNDLE_ID } from '@hiveannotate/core'
 import type { CaptureIntent } from '@hiveannotate/core'
 import { startHotkeys } from './hotkeys.ts'
+import { CaptureSession } from './captureSession.ts'
+import { buildAdapterRegistry } from './handoff.ts'
 import type { HotkeyService } from './hotkeys.ts'
 
 const here = fileURLToPath(new URL('.', import.meta.url))
@@ -33,7 +35,7 @@ function showAbout(): void {
     title: APP_NAME,
     show: false,
     webPreferences: {
-      preload: join(here, '../preload/index.mjs'),
+      preload: join(here, '../preload/index.cjs'),
       contextIsolation: true,
       nodeIntegration: false,
     },
@@ -95,14 +97,16 @@ function buildTray(): void {
   renderTrayMenu()
 }
 
+let session: CaptureSession | null = null
+
 function onCaptureIntent(intent: CaptureIntent): void {
-  // The overlay lands in hive-v1-11/12/13. Until then the chord proves it
-  // reaches us, which is what hive-v1-08 is responsible for.
-  console.log(`[capture] intent: ${intent}`)
+  void session?.capture(intent)
 }
 
 void app.whenReady().then(() => {
   buildTray()
+
+  session = new CaptureSession(buildAdapterRegistry())
 
   hotkeys = startHotkeys(onCaptureIntent)
   for (const { chord, registered } of hotkeys.registrations) {
@@ -119,6 +123,49 @@ void app.whenReady().then(() => {
 })
 
 app.on('will-quit', () => hotkeys?.dispose())
+
+/**
+ * Dev-only end-to-end check: fire a capture, type into the bar, press Enter,
+ * and report whether a bundle landed on disk. Point HIVEANNOTATE_HOME at a
+ * temp directory before running it.
+ */
+if (process.argv.includes('--self-test')) {
+  void app.whenReady().then(async () => {
+    const { defaultBundleRoot } = await import('@hiveannotate/core')
+    const { BundleStore } = await import('@hiveannotate/core')
+    const wait = (ms: number) => new Promise((r) => setTimeout(r, ms))
+
+    await wait(1200)
+    await session?.capture('screen')
+    await wait(1500)
+
+    const overlayWindow = BrowserWindow.getAllWindows().find((w) => w.isVisible())
+    if (!overlayWindow) {
+      console.log('SELF-TEST FAIL: the capture bar never appeared')
+      app.quit()
+      return
+    }
+    console.log('SELF-TEST: bar is visible')
+
+    for (const ch of ['s', 'i', 'd', 'e', 'b', 'a', 'r', ' ', 'b', 'u', 'g']) {
+      overlayWindow.webContents.sendInputEvent({ type: 'keyDown', keyCode: ch })
+      overlayWindow.webContents.sendInputEvent({ type: 'char', keyCode: ch })
+      overlayWindow.webContents.sendInputEvent({ type: 'keyUp', keyCode: ch })
+    }
+    await wait(400)
+    overlayWindow.webContents.sendInputEvent({ type: 'keyDown', keyCode: 'Return' })
+    overlayWindow.webContents.sendInputEvent({ type: 'keyUp', keyCode: 'Return' })
+    await wait(2000)
+
+    const bundles = await new BundleStore(defaultBundleRoot()).listBundles()
+    if (bundles.length === 1 && bundles[0]) {
+      console.log(`SELF-TEST PASS: filed "${bundles[0].intent}" as ${bundles[0].id} with ${bundles[0].captureCount} capture(s)`)
+    } else {
+      console.log(`SELF-TEST FAIL: expected one bundle, found ${bundles.length}`)
+    }
+    app.quit()
+  })
+}
 
 // A background app has no windows to keep it alive; closing the About window
 // must not quit it.

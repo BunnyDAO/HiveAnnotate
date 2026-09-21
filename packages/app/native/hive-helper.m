@@ -69,6 +69,8 @@ static int frontmost(pid_t excludePid) {
     @"ok": @YES,
     @"pid": @(targetPid),
     @"app": front.localizedName ?: @"",
+    // Needed to hand focus back on dismiss: macOS does not restore it for us.
+    @"bundleId": front.bundleIdentifier ?: @"",
     @"windows": candidates,
   });
   return 0;

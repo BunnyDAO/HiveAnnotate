@@ -4,6 +4,14 @@ export type { ActiveBundle, CaptureDestination } from './activeBundlePolicy.ts'
 export { ActiveBundleTracker } from './activeBundleTracker.ts'
 export type { ActiveBundleTrackerDeps } from './activeBundleTracker.ts'
 export { BundleStore } from './bundleStore.ts'
+export { CaptureFlow } from './captureFlow.ts'
+export type {
+  BeginResult,
+  CommitOptions,
+  CommitTarget,
+  CaptureFlowDeps,
+  PendingCapture,
+} from './captureFlow.ts'
 export type {
   Bundle,
   BundleSummary,

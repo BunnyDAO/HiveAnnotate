@@ -12,7 +12,13 @@ export default defineConfig({
   preload: {
     build: {
       outDir: resolve(__dirname, 'out/preload'),
-      rollupOptions: { input: resolve(__dirname, 'src/preload/index.ts') },
+      rollupOptions: {
+        input: resolve(__dirname, 'src/preload/index.ts'),
+        // CommonJS on purpose. The package is "type": "module", so the default
+        // emit is .mjs — and Electron only loads an ESM preload with the
+        // sandbox turned off. Emitting CJS keeps the sandbox on.
+        output: { format: 'cjs', entryFileNames: 'index.cjs' },
+      },
     },
   },
   renderer: {
