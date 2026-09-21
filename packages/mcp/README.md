@@ -39,6 +39,17 @@ Or by hand, in `.mcp.json` or your user settings:
 
 Then, in a session: *"grab the latest hive bundle and fix it."*
 
+Or paste the pointer HiveAnnotate copies when you save with **Cmd + Enter** — it describes
+itself, so it works in any agent, with or without this server:
+
+```
+HiveAnnotate bundle 2026-09-21-sidebar: screenshots plus notes on what needs doing. Read /Users/you/HiveAnnotate/bundles/2026-09-21-sidebar/bundle.md — the screenshots are in the same folder.
+```
+
+An agent with no knowledge of HiveAnnotate was handed only that line and found the bundle,
+read the note and described the screenshot. The earlier format, `use hive bundle <id>`, still
+resolves here.
+
 ## Where bundles are read from
 
 `~/HiveAnnotate/bundles` by default. Set `HIVEANNOTATE_HOME` to point somewhere else — the

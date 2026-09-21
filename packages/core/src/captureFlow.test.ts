@@ -36,6 +36,7 @@ function flow(backend: CaptureBackend = backendReturning(goodCapture)): CaptureF
     tracker,
     registry,
     now: () => now,
+    bundleRoot: join(home, 'bundles'),
   })
 }
 
@@ -187,7 +188,10 @@ describe('⌘⏎ — file it and copy the pointer', () => {
       copyPointer: true,
     })
 
-    expect(copied).toEqual([`use hive bundle ${bundle.id}`])
+    expect(copied).toHaveLength(1)
+    // Self-describing, with a real absolute path any agent can open.
+    expect(copied[0]).toContain(`HiveAnnotate bundle ${bundle.id}`)
+    expect(copied[0]).toContain(join(home, 'bundles', bundle.id, 'bundle.md'))
   })
 
   it('still files the capture when the clipboard adapter fails', async () => {
@@ -197,7 +201,7 @@ describe('⌘⏎ — file it and copy the pointer', () => {
       label: 'Copy pointer',
       handoff: async () => { throw new Error('clipboard unavailable') },
     })
-    const f = new CaptureFlow({ backend: backendReturning(goodCapture), store, tracker, registry: failing, now: () => now })
+    const f = new CaptureFlow({ backend: backendReturning(goodCapture), store, tracker, registry: failing, now: () => now, bundleRoot: join(home, 'bundles') })
 
     const begun = await f.begin({ kind: 'window', windowId: 1 })
     if (!begun.ok) throw new Error('setup')

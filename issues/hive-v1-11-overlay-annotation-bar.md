@@ -53,7 +53,7 @@ state is only observable by eye.
 - [ ] Same over a terminal running something interactive.
 - [ ] Press `⌥1` over a **fullscreen** app — the bar appears above it.
 - [ ] `⇥` cycles the target bundle and the chip updates.
-- [ ] `⌘⏎` files and puts `use hive bundle <id>` on the clipboard — paste it somewhere.
+- [ ] Cmd + Enter saves and puts a one-line pointer on the clipboard (`HiveAnnotate bundle <id>: … Read <path>/bundle.md …`) — paste it into any agent.
 - [ ] `⎋` discards: nothing appears in `~/HiveAnnotate/bundles`.
 - [ ] After dismissing, focus is back in the app you started from.
 

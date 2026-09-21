@@ -25,6 +25,7 @@ export {
   AdapterRegistry,
   HandoffError,
   bundlePointer,
+  parseBundlePointer,
   createClipboardAdapter,
   createFolderAdapter,
 } from './handoff.ts'

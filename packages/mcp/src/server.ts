@@ -26,7 +26,8 @@ export function createServer(root: string): McpServer {
     {
       title: 'Get a bundle',
       description:
-        "A bundle's intent, its captures and their notes, with absolute paths to the image files. Read the images from those paths.",
+        "A bundle's intent, its captures and their notes, with absolute paths to the image files. Read the images from those paths. " +
+        "The id is what appears in a pasted pointer such as 'HiveAnnotate bundle 2026-09-21-sidebar: …' or the older 'use hive bundle 2026-09-21-sidebar'.",
       inputSchema: { id: z.string().describe('The bundle id, as returned by list_bundles.') },
     },
     async ({ id }) => asText(await tools.getBundle(id)),

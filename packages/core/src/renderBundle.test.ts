@@ -49,9 +49,15 @@ describe('bundle.md', () => {
     expect(renderBundleMarkdown(bundle)).toContain('## 002.png — region · 800×420')
   })
 
-  it('renders an empty bundle without inventing content', () => {
-    expect(renderBundleMarkdown({ ...bundle, captures: [] })).toBe(
-      '# sidebar collapses when the modal opens\n',
-    )
+  it('renders an empty bundle without inventing captures', () => {
+    const md = renderBundleMarkdown({ ...bundle, captures: [] })
+    expect(md.startsWith('# sidebar collapses when the modal opens\n')).toBe(true)
+    expect(md).not.toContain('## ')
+  })
+
+  it('explains itself to an agent that has never heard of HiveAnnotate', () => {
+    const md = renderBundleMarkdown(bundle)
+    expect(md).toMatch(/HiveAnnotate bundle/)
+    expect(md).toMatch(/screenshot in this folder/)
   })
 })

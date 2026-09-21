@@ -110,7 +110,7 @@ export class Catalogue {
           // The renderer never sees a filesystem path; it gets a scoped URL.
           src: `${SCHEME}://local/${encodeURIComponent(id)}/${encodeURIComponent(c.file)}`,
         })),
-        pointer: bundlePointer(bundle.id),
+        pointer: bundlePointer(bundle.id, join(this.root, bundle.id)),
       }
     })
 
@@ -139,7 +139,7 @@ export class Catalogue {
       await this.registry.handoff(p.adapterId, {
         bundle,
         directory: join(this.root, bundle.id),
-        pointer: bundlePointer(bundle.id),
+        pointer: bundlePointer(bundle.id, join(this.root, bundle.id)),
       })
       return null
     })

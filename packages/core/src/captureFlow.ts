@@ -47,7 +47,11 @@ export interface CaptureFlowDeps {
   registry: AdapterRegistry
   now: () => Date
   staleAfterMs?: number
-  bundleRoot?: string
+  /**
+   * Absolute. The copied pointer names a real path an agent can open, so a
+   * relative or missing root would produce a pointer that leads nowhere.
+   */
+  bundleRoot: string
 }
 
 export class CaptureFlow {
@@ -134,8 +138,8 @@ export class CaptureFlow {
     try {
       await this.deps.registry.handoff('clipboard', {
         bundle,
-        directory: join(this.deps.bundleRoot ?? '', bundle.id),
-        pointer: bundlePointer(bundle.id),
+        directory: join(this.deps.bundleRoot, bundle.id),
+        pointer: bundlePointer(bundle.id, join(this.deps.bundleRoot, bundle.id)),
       })
     } catch {
       // A failed handoff costs the handoff, never the capture. The bar can

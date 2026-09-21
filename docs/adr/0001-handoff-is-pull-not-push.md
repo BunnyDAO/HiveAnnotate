@@ -59,3 +59,15 @@ inert. That is the correct trade for a tool whose whole premise is not interrupt
 **Load-bearing.** This decision is why `packages/mcp` depends on `packages/core` alone and must
 run with Electron absent, and why the on-disk format is boring and open. Reversing it would not
 be a refactor; it would be a different product.
+
+## Amendment — 2026-09-21: the pointer describes itself
+
+The decision stands; one detail of it changed. The copied pointer was `use hive bundle <id>`,
+which only means something to an agent that already knows HiveAnnotate — at odds with the
+agent-agnostic premise above. It is now a sentence naming the product, the id, and an absolute
+path to `bundle.md`, and `bundle.md` opens with a line explaining what it is.
+
+Tested by handing each format, and nothing else, to a fresh agent with no context. Both were
+found on the author's machine, but the old format only because the agent located HiveAnnotate's
+*source code* and read the design docs — something no ordinary install would have. The new
+format was followed directly, in a third of the time. The old format still resolves.

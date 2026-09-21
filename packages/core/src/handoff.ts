@@ -11,6 +11,7 @@
  * Electron and fully testable.
  */
 
+import { join } from 'node:path'
 import type { Bundle } from './bundleStore.ts'
 
 export interface HandoffTarget {
@@ -28,12 +29,31 @@ export interface HandoffAdapter {
 }
 
 /**
- * The one-line pointer copied by the capture bar. Text, never an image: a
- * terminal cannot paste an image, which is the reason the clipboard is not the
- * primary handoff path.
+ * The one-line pointer the capture bar copies (Cmd + Enter).
+ *
+ * Self-describing on purpose: any agent that can read a file can act on it
+ * with no knowledge of HiveAnnotate. The first version was "use hive bundle
+ * <id>", which meant something only to an agent built alongside this project —
+ * a direct contradiction of the product being agent-agnostic. It is text, never
+ * an image: a terminal cannot paste an image.
  */
-export function bundlePointer(id: string): string {
-  return `use hive bundle ${id}`
+export function bundlePointer(id: string, directory: string): string {
+  return (
+    `HiveAnnotate bundle ${id}: screenshots plus notes on what needs doing. ` +
+    `Read ${join(directory, 'bundle.md')} — the screenshots are in the same folder.`
+  )
+}
+
+/**
+ * The bundle id named by a pointer, in either the current format or the
+ * original "use hive bundle <id>" one — old pointers live on in clipboards and
+ * chat history and must keep resolving.
+ */
+export function parseBundlePointer(text: string): string | null {
+  const match =
+    text.match(/HiveAnnotate bundle\s+([0-9]{4}-[0-9]{2}-[0-9]{2}-[a-z0-9-]+)/i) ??
+    text.match(/use hive bundle\s+([0-9]{4}-[0-9]{2}-[0-9]{2}-[a-z0-9-]+)/i)
+  return match?.[1] ?? null
 }
 
 export function createFolderAdapter(deps: { reveal: (path: string) => void }): HandoffAdapter {

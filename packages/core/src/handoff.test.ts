@@ -2,9 +2,12 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import { existsSync } from 'node:fs'
+import { isAbsolute } from 'node:path'
 import {
   AdapterRegistry,
   bundlePointer,
+  parseBundlePointer,
   createClipboardAdapter,
   createFolderAdapter,
 } from './handoff.ts'
@@ -32,20 +35,41 @@ async function target(): Promise<HandoffTarget> {
     height: 50,
     takenAt: new Date('2026-09-20T14:00:00Z'),
   })
-  return { bundle, directory: join(root, bundle.id), pointer: bundlePointer(bundle.id) }
+  return { bundle, directory: join(root, bundle.id), pointer: bundlePointer(bundle.id, join(root, bundle.id)) }
 }
 
 describe('the text pointer', () => {
-  it('is a single line of plain text naming the bundle', () => {
-    const pointer = bundlePointer('2026-09-20-sidebar-collapses')
-    expect(pointer).toBe('use hive bundle 2026-09-20-sidebar-collapses')
-    expect(pointer).not.toContain('\n')
+  it('is a single line of plain text', async () => {
+    const t = await target()
+    expect(t.pointer).not.toContain('\n')
+  })
+
+  // The first format, "use hive bundle <id>", meant nothing to an agent that
+  // had not been built alongside HiveAnnotate. Tested by handing both formats
+  // to a fresh zero-context agent: only the self-describing one was found.
+  it('names the product, the id, and an absolute path to bundle.md', async () => {
+    const t = await target()
+    expect(t.pointer).toContain(`HiveAnnotate bundle ${t.bundle.id}`)
+    const path = t.pointer.match(/Read (\S+bundle\.md)/)?.[1]
+    expect(path).toBeDefined()
+    expect(isAbsolute(path!)).toBe(true)
+    expect(existsSync(path!)).toBe(true)
   })
 
   it('round-trips: the id it names resolves to that bundle', async () => {
     const t = await target()
-    const id = bundlePointer(t.bundle.id).replace('use hive bundle ', '')
-    expect((await store.getBundle(id)).id).toBe(t.bundle.id)
+    const id = parseBundlePointer(t.pointer)
+    expect(id).toBe(t.bundle.id)
+    expect((await store.getBundle(id!)).id).toBe(t.bundle.id)
+  })
+
+  it('still understands the original "use hive bundle" format', () => {
+    // Old pointers live on in clipboards and chat history.
+    expect(parseBundlePointer('use hive bundle 2026-09-21-test')).toBe('2026-09-21-test')
+  })
+
+  it('returns null for text that is not a pointer', () => {
+    expect(parseBundlePointer('just some notes')).toBeNull()
   })
 })
 
