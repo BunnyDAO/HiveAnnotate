@@ -21,6 +21,15 @@ export {
   createFolderAdapter,
 } from './handoff.ts'
 export type { HandoffAdapter, HandoffTarget } from './handoff.ts'
+export { MacCaptureBackend } from './macos/captureBackend.ts'
+export type {
+  CaptureBackend,
+  CaptureFailure,
+  CaptureResult,
+  CaptureTarget,
+  MacCaptureBackendOptions,
+} from './macos/captureBackend.ts'
+export { pngSize } from './pngSize.ts'
 export { WindowLocator } from './macos/windowLocator.ts'
 export type { FrontmostWindow, LocateResult } from './macos/windowLocator.ts'
 export { renderBundleMarkdown } from './renderBundle.ts'
