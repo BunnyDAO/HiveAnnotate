@@ -43,6 +43,10 @@ export function CaptureBar(): React.JSX.Element {
   const [note, setNote] = useState('')
   /** Index into `choices` of the chip that Enter will file into. */
   const [selected, setSelected] = useState(0)
+  /** The new bundle's name, once the user has typed their own. */
+  const [bundleName, setBundleName] = useState('')
+  const [nameTouched, setNameTouched] = useState(false)
+  const nameField = useRef<HTMLInputElement>(null)
   const [error, setError] = useState<string | null>(null)
   const [failure, setFailure] = useState<FailurePayload | null>(null)
   const field = useRef<HTMLInputElement>(null)
@@ -57,6 +61,8 @@ export function CaptureBar(): React.JSX.Element {
       if (!incoming.isRetry) {
         setNote('')
         setSelected(0)
+        setBundleName('')
+        setNameTouched(false)
       }
       // Focused without a click: the whole premise is that you type immediately.
       requestAnimationFrame(() => field.current?.focus())
@@ -70,22 +76,49 @@ export function CaptureBar(): React.JSX.Element {
     })
   }, [])
 
-  // Every option is a visible chip: the default first, a new bundle right
-  // beside it, then the other open bundles.
+  // Every option is a visible chip: the default first, the other open
+  // bundles, then "+ New bundle".
   const choices = view
     ? filingChoices(view.destination as Parameters<typeof filingChoices>[0], view.bundles)
     : filingChoices({ kind: 'new' }, [])
   const current = choices[Math.min(selected, choices.length - 1)] ?? choices[0]!
 
-  function pick(index: number): void {
+  // A new bundle always has a name. It starts as the note, so a good note
+  // costs nothing extra; typing in the field replaces it. Required: a new
+  // bundle cannot be saved with it empty.
+  const naming = current.isNew
+  const nameValue = nameTouched ? bundleName : note.trim()
+
+  /** Selects a chip and puts the cursor where the next keystroke belongs. */
+  function select(index: number): void {
     setSelected(index)
-    // Clicking a chip must not strand the user outside the note field.
-    requestAnimationFrame(() => field.current?.focus())
+    setError(null)
+    const chosen = choices[index]
+    requestAnimationFrame(() => {
+      // Choosing "+ New bundle" means you are about to name it; otherwise
+      // the note field is where typing goes.
+      if (chosen?.isNew && !chosen.isDefault) {
+        nameField.current?.focus()
+        nameField.current?.select()
+      } else {
+        field.current?.focus()
+      }
+    })
   }
 
   async function commit(copyPointer: boolean, target: FilingTarget): Promise<void> {
+    let finalTarget = target
+    if (target.kind === 'new') {
+      const name = nameValue.trim()
+      if (!name) {
+        setError('Name the new bundle first.')
+        requestAnimationFrame(() => nameField.current?.focus())
+        return
+      }
+      finalTarget = { kind: 'new', name }
+    }
     try {
-      await window.hive?.commit?.({ note, target, copyPointer })
+      await window.hive?.commit?.({ note, target: finalTarget, copyPointer })
     } catch (e) {
       setError((e as Error).message)
     }
@@ -109,7 +142,7 @@ export function CaptureBar(): React.JSX.Element {
     if (e.key === 'Tab') {
       e.preventDefault()
       const step = e.shiftKey ? -1 : 1
-      setSelected((i) => (i + step + choices.length) % choices.length)
+      select((selected + step + choices.length) % choices.length)
       return
     }
     if (e.key === 'Enter') {
@@ -132,7 +165,9 @@ export function CaptureBar(): React.JSX.Element {
         borderRadius: 14,
         background: ground,
         border: `1px solid ${border}`,
-        boxShadow: '0 28px 70px rgba(0,0,0,.7)',
+        // Soft enough to sit calmly over a white app as well as a dark one;
+        // the heavier shadow read as a grey smudge over light windows.
+        boxShadow: '0 12px 32px rgba(0,0,0,.35)',
         fontFamily: fonts.sans,
         display: 'flex',
         flexDirection: 'column',
@@ -184,7 +219,7 @@ export function CaptureBar(): React.JSX.Element {
               key={choice.key}
               type="button"
               aria-pressed={on}
-              onClick={() => pick(index)}
+              onClick={() => select(index)}
               title={choice.isNew ? 'Named from your note' : choice.label}
               style={{
                 display: 'inline-flex',
@@ -221,6 +256,44 @@ export function CaptureBar(): React.JSX.Element {
           </span>
         )}
       </div>
+      )}
+
+      {!failure && naming && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, paddingBottom: 14 }}>
+          <label htmlFor="bundle-name" style={{ fontSize: 12, color: dim, whiteSpace: 'nowrap' }}>
+            Bundle name
+          </label>
+          <input
+            id="bundle-name"
+            ref={nameField}
+            required
+            value={nameValue}
+            onChange={(e) => {
+              setBundleName(e.target.value)
+              setNameTouched(true)
+              setError(null)
+            }}
+            onKeyDown={onKeyDown}
+            placeholder="name this bundle"
+            aria-describedby="bundle-name-hint"
+            style={{
+              flex: 1,
+              minWidth: 0,
+              boxSizing: 'border-box',
+              padding: '6px 10px',
+              borderRadius: 7,
+              background: theme.surfaceRaised,
+              border: `1px solid ${error ? theme.danger : theme.borderStrong}`,
+              outline: 'none',
+              fontSize: 13,
+              color: ink,
+              fontFamily: 'inherit',
+            }}
+          />
+          <span id="bundle-name-hint" style={{ fontSize: 11, color: dim, whiteSpace: 'nowrap' }}>
+            {nameTouched ? 'required' : 'from your note · type to rename'}
+          </span>
+        </div>
       )}
 
       {error && (

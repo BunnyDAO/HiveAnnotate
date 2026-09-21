@@ -7,3 +7,6 @@
 - Δ 2026-09-21: After first real use — the region picker moves to `⌥1` (window capture to `⌥3`),
   `⌥4` toggles the Catalogue, and double-clicking a screenshot opens a full-size viewer.
   (new: hive-v1-18)
+- Δ 2026-09-21: Filing choices become visible chips with + New bundle last; a new bundle gets a
+  required name, prefilled from the note (amends the PRD's "first note names the bundle, never
+  prompted"); a handled bundle can be reopened. (new: hive-v1-19)

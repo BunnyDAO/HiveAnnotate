@@ -118,15 +118,23 @@ export class BundleStore {
     this.root = root
   }
 
-  async createBundle(first: NewCapture): Promise<Bundle> {
-    const id = await this.allocateId(first.note, first.takenAt)
+  /**
+   * Starts a Bundle with its first Capture.
+   *
+   * `name` is the bundle's name and intent. When omitted it is seeded from the
+   * first Note — the original design. The capture bar now always passes one,
+   * prefilled from the note but editable, because in real use bundles turned
+   * out to be named buckets ("To do Bundle #1") as often as single problems.
+   */
+  async createBundle(first: NewCapture, options: { name?: string } = {}): Promise<Bundle> {
+    const intent = options.name?.trim() || first.note
+    const id = await this.allocateId(intent, first.takenAt)
     const dir = join(this.root, id)
     await mkdir(dir, { recursive: true })
 
     const manifest: Manifest = {
       id,
-      // The first Note seeds the Intent. The user is never prompted for one.
-      intent: first.note,
+      intent,
       status: 'open',
       createdAt: first.takenAt.toISOString(),
       captures: [],
@@ -257,6 +265,13 @@ export class BundleStore {
   async closeBundle(id: string): Promise<Bundle> {
     const manifest = await this.readManifest(id)
     manifest.status = 'closed'
+    return this.writeManifest(manifest)
+  }
+
+  /** Undoes closeBundle: a bundle marked handled by mistake comes back. */
+  async reopenBundle(id: string): Promise<Bundle> {
+    const manifest = await this.readManifest(id)
+    manifest.status = 'open'
     return this.writeManifest(manifest)
   }
 

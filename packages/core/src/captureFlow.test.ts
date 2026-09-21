@@ -229,13 +229,13 @@ describe('⎋ — discard', () => {
 })
 
 describe('an empty note', () => {
-  it('is refused when it would have to name a new bundle', async () => {
+  it('is refused when it would have to name a new bundle and no name is given', async () => {
     const begun = await flow().begin({ kind: 'window', windowId: 1 })
     if (!begun.ok) throw new Error('setup')
 
     await expect(
       flow().commit(begun.pending, '   ', { target: { kind: 'active' } }),
-    ).rejects.toThrow(/note/i)
+    ).rejects.toThrow(/name/i)
 
     expect(await store.listBundles()).toEqual([])
   })
@@ -251,5 +251,32 @@ describe('an empty note', () => {
 
     expect(second.id).toBe(first.id)
     expect(second.captures).toHaveLength(2)
+  })
+})
+
+describe('naming a new bundle', () => {
+  it('uses the name given, and keeps the note on the capture', async () => {
+    const begun = await flow().begin({ kind: 'window', windowId: 1 })
+    if (!begun.ok) throw new Error('setup')
+    const bundle = await flow().commit(begun.pending, 'login button misaligned', {
+      target: { kind: 'new', name: 'To do Bundle #4' },
+    })
+    expect(bundle.intent).toBe('To do Bundle #4')
+    expect(bundle.captures[0]?.note).toBe('login button misaligned')
+  })
+
+  it('accepts a name with no note', async () => {
+    const begun = await flow().begin({ kind: 'window', windowId: 1 })
+    if (!begun.ok) throw new Error('setup')
+    const bundle = await flow().commit(begun.pending, '', { target: { kind: 'new', name: 'Backlog' } })
+    expect(bundle.intent).toBe('Backlog')
+  })
+
+  it('refuses a new bundle with neither a name nor a note', async () => {
+    const begun = await flow().begin({ kind: 'window', windowId: 1 })
+    if (!begun.ok) throw new Error('setup')
+    await expect(
+      flow().commit(begun.pending, ' ', { target: { kind: 'new', name: ' ' } }),
+    ).rejects.toThrow(/name/i)
   })
 })

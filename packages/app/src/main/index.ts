@@ -452,31 +452,99 @@ if (process.argv.includes('--self-test')) {
     // --- filing chips: start a new bundle right from the bar ---------------
     {
       const chipStore = new BundleStore(defaultBundleRoot())
-      const before = await chipStore.listBundles()
-      // The Catalogue is still open from the step above, so "the visible
-      // window" is ambiguous here; ask for the capture bar by its surface.
+      const bar = () =>
+        BrowserWindow.getAllWindows().find((w) => w.isVisible() && w.webContents.getURL().includes('#capture'))
+      const shiftTab = (w: BrowserWindow) => {
+        w.webContents.sendInputEvent({ type: 'keyDown', keyCode: 'Tab', modifiers: ['shift'] })
+        w.webContents.sendInputEvent({ type: 'keyUp', keyCode: 'Tab', modifiers: ['shift'] })
+      }
+      const newest = async (before: { id: string }[]) =>
+        (await chipStore.listBundles()).find((b) => !before.some((x) => x.id === b.id))
+
+      // 1. Accept the name taken from the note.
+      let before = await chipStore.listBundles()
       await session?.capture('screen')
       await wait(1500)
-      const chipBar = BrowserWindow.getAllWindows().find(
-        (w) => w.isVisible() && w.webContents.getURL().includes('#capture'),
-      )
-      if (chipBar) {
-        const text: string = await chipBar.webContents.executeJavaScript('document.body.innerText')
-        check('chips: the bar offers a new bundle beside the default', /New bundle/.test(text), '')
-        type(chipBar, [...'a separate problem'])
+      let w = bar()
+      if (w) {
+        const text: string = await w.webContents.executeJavaScript('document.body.innerText')
+        const chips: string[] = await w.webContents.executeJavaScript(
+          `[...document.querySelectorAll('button[aria-pressed]')].map(b => b.innerText.trim())`,
+        )
+        check('chips: New bundle is offered, last in the row', /New bundle/.test(text) && /New bundle/.test(chips.at(-1) ?? ''),
+          chips.join(' | '))
+        type(w, [...'a separate problem'])
         await wait(300)
-        type(chipBar, ['Tab']) // default -> "+ New bundle"
-        await wait(300)
-        type(chipBar, ['Return'])
+        shiftTab(w) // from the default, one Shift+Tab wraps to "+ New bundle"
+        await wait(400)
+        const nameShown: string = await w.webContents.executeJavaScript('document.querySelector("#bundle-name")?.value ?? "(no field)"')
+        check('chips: choosing New bundle shows a name field filled from the note', nameShown === 'a separate problem', nameShown)
+        type(w, ['Return'])
         await wait(1800)
       }
-      const after = await chipStore.listBundles()
-      const created = after.find((b) => !before.some((x) => x.id === b.id))
+      let created = await newest(before)
+      check('chips: Enter accepts the name from the note', created?.intent === 'a separate problem', created?.id ?? 'none created')
+
+      // 2. Type a different name.
+      before = await chipStore.listBundles()
+      await session?.capture('screen')
+      await wait(1500)
+      w = bar()
+      if (w) {
+        type(w, [...'login button misaligned'])
+        await wait(300)
+        shiftTab(w)
+        await wait(400)
+        type(w, [...'To do Bundle 4']) // replaces the selected prefill
+        await wait(300)
+        type(w, ['Return'])
+        await wait(1800)
+      }
+      created = await newest(before)
+      const createdFull = created ? await chipStore.getBundle(created.id) : null
       check(
-        'chips: Tab to "New bundle" then Enter starts a new bundle named from the note',
-        after.length === before.length + 1 && created?.intent === 'a separate problem',
-        created ? `${created.id}` : `bundles ${before.length} -> ${after.length}`,
+        'chips: a typed name names the bundle; the note stays on the capture',
+        createdFull?.intent === 'To do Bundle 4' && createdFull?.captures[0]?.note === 'login button misaligned',
+        createdFull ? `${createdFull.intent} / ${createdFull.captures[0]?.note}` : 'none created',
       )
+
+      // 3. The name is required.
+      before = await chipStore.listBundles()
+      await session?.capture('screen')
+      await wait(1500)
+      w = bar()
+      let refusal = ''
+      if (w) {
+        shiftTab(w) // New bundle, with no note to borrow a name from
+        await wait(400)
+        type(w, ['Return'])
+        await wait(800)
+        refusal = await w.webContents.executeJavaScript('document.body.innerText')
+        type(w, ['Escape'])
+        await wait(800)
+      }
+      const after = await chipStore.listBundles()
+      check(
+        'chips: a new bundle cannot be saved without a name',
+        after.length === before.length && /Name the new bundle/.test(refusal),
+        `bundles ${before.length} -> ${after.length}`,
+      )
+    }
+
+    // --- a bundle marked handled can be reopened ----------------------------
+    {
+      const rs = new BundleStore(defaultBundleRoot())
+      const [some] = await rs.listBundles()
+      const cat = BrowserWindow.getAllWindows().find((x) => x.webContents.getURL().includes('#catalogue'))
+      if (some && cat) {
+        await cat.webContents.executeJavaScript(`window.hive.catalogue.closeBundle(${JSON.stringify(some.id)})`)
+        const closed = (await rs.getBundle(some.id)).status
+        await cat.webContents.executeJavaScript(`window.hive.catalogue.reopenBundle(${JSON.stringify(some.id)})`)
+        const reopened = (await rs.getBundle(some.id)).status
+        check('catalogue: a handled bundle can be reopened', closed === 'closed' && reopened === 'open', `${closed} -> ${reopened}`)
+      } else {
+        check('catalogue: a handled bundle can be reopened', false, 'no bundle or no catalogue window')
+      }
     }
 
     const failed = results.filter((r) => r.startsWith('FAIL'))
@@ -635,6 +703,17 @@ if (snapIndex !== -1) {
     }
     await session?.capture(surface === 'picker' ? 'region' : 'screen')
     await wait(1500)
+    if (surface === 'newbundle') {
+      const w = BrowserWindow.getAllWindows().find((x) => x.isVisible() && x.webContents.getURL().includes('#capture'))
+      for (const ch of 'checkout total is wrong') {
+        w?.webContents.sendInputEvent({ type: 'keyDown', keyCode: ch })
+        w?.webContents.sendInputEvent({ type: 'char', keyCode: ch })
+        w?.webContents.sendInputEvent({ type: 'keyUp', keyCode: ch })
+      }
+      w?.webContents.sendInputEvent({ type: 'keyDown', keyCode: 'Tab', modifiers: ['shift'] })
+      w?.webContents.sendInputEvent({ type: 'keyUp', keyCode: 'Tab', modifiers: ['shift'] })
+      await wait(600)
+    }
     await shoot('screencapture', ['-x', `/tmp/hive-snap-${surface}.png`])
     console.log(`SNAP: /tmp/hive-snap-${surface}.png`)
     const open = BrowserWindow.getAllWindows().find((w) => w.isVisible())

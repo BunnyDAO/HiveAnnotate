@@ -12,7 +12,7 @@
 
 export type FilingTarget =
   | { kind: 'active' }
-  | { kind: 'new' }
+  | { kind: 'new'; name?: string }
   | { kind: 'bundle'; id: string }
 
 export interface FilingChoice {
@@ -55,14 +55,17 @@ export function filingChoices(
       isDefault: true,
       isNew: false,
     })
-    // New sits right beside the default: it is the most common alternative.
-    choices.push(NEW_CHOICE(false))
   } else {
     choices.push(NEW_CHOICE(true))
   }
 
+  // Existing bundles stay together; "New bundle" goes last, where "add" lives
+  // in most lists — and one Shift+Tab from the default wraps straight to it.
+  // (It first sat second, splitting the existing bundles in two; changed on
+  // the user's request.) When it is the default, it already leads.
+  const room = destination.kind === 'append' ? max - 1 : max
   for (const bundle of openBundles) {
-    if (choices.length >= max) break
+    if (choices.length >= room) break
     // The active bundle is already the default; listing it again would put
     // the same bundle in the cycle twice.
     if (destination.kind === 'append' && bundle.id === destination.bundleId) continue
@@ -75,5 +78,6 @@ export function filingChoices(
     })
   }
 
+  if (destination.kind === 'append') choices.push(NEW_CHOICE(false))
   return choices
 }

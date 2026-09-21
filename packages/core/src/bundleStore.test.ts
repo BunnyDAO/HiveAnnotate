@@ -340,3 +340,25 @@ describe('the date in a bundle id', () => {
     expect(id.startsWith(local)).toBe(true)
   })
 })
+
+describe('naming and reopening', () => {
+  it('names a new bundle explicitly when asked, instead of from the note', async () => {
+    const b = await store.createBundle(capture({ note: 'broken sidebar' }), { name: 'To do Bundle #4' })
+    expect(b.intent).toBe('To do Bundle #4')
+    expect(b.id).toBe('2026-09-20-to-do-bundle-4')
+    // The capture keeps its own note.
+    expect(b.captures[0]?.note).toBe('broken sidebar')
+  })
+
+  it('falls back to the note when the name is blank', async () => {
+    const b = await store.createBundle(capture({ note: 'broken sidebar' }), { name: '   ' })
+    expect(b.intent).toBe('broken sidebar')
+  })
+
+  it('reopens a closed bundle', async () => {
+    const { id } = await store.createBundle(capture())
+    await store.closeBundle(id)
+    await store.reopenBundle(id)
+    expect((await store.getBundle(id)).status).toBe('open')
+  })
+})

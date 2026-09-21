@@ -296,13 +296,21 @@ export function Catalogue(): React.JSX.Element {
           </button>
         ))}
 
-        {bundle && bundle.status === 'open' && (
+        {bundle && (
+          // Handled and reopened are one toggle: a bundle marked handled by
+          // mistake has to be able to come back.
           <button
             type="button"
-            onClick={() => void act('close', () => window.hive!.catalogue!.closeBundle(bundle.id))}
+            onClick={() =>
+              void act(bundle.status === 'open' ? 'close' : 'reopen', () =>
+                bundle.status === 'open'
+                  ? window.hive!.catalogue!.closeBundle(bundle.id)
+                  : window.hive!.catalogue!.reopenBundle(bundle.id),
+              )
+            }
             style={{ width: '100%', boxSizing: 'border-box', textAlign: 'left', padding: '12px 14px', borderRadius: 8, background: 'transparent', border: `1px dashed ${theme.borderStrong}`, color: muted, fontSize: 13, cursor: 'pointer', fontFamily: sans }}
           >
-            Mark handled
+            {bundle.status === 'open' ? 'Mark handled' : 'Reopen'}
           </button>
         )}
 

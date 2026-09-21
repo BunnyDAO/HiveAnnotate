@@ -32,7 +32,8 @@ export type BeginResult =
 
 export type CommitTarget =
   | { kind: 'active' }
-  | { kind: 'new' }
+  /** A new bundle, optionally with an explicit name (otherwise the note names it). */
+  | { kind: 'new'; name?: string }
   | { kind: 'bundle'; id: string }
 
 export interface CommitOptions {
@@ -89,12 +90,14 @@ export class CaptureFlow {
     const trimmed = note.trim()
     const bundleId = await this.resolveBundle(pending, options.target)
 
-    // A new Bundle takes its name and its Intent from this note. Without one
-    // there is nothing to call it and nothing for an agent to act on, so it is
-    // refused rather than filed as "untitled". Appending is different: the
-    // image is the evidence and the Bundle already has an Intent.
-    if (!bundleId && !trimmed) {
-      throw new Error('a new bundle needs a note — it becomes the bundle’s name and intent')
+    const name = options.target.kind === 'new' ? options.target.name?.trim() ?? '' : ''
+
+    // A new Bundle needs a name — given explicitly, or taken from the note.
+    // Without either there is nothing to call it and nothing for an agent to
+    // act on, so it is refused rather than filed as "untitled". Appending is
+    // different: the image is the evidence and the Bundle already has a name.
+    if (!bundleId && !trimmed && !name) {
+      throw new Error('a new bundle needs a name')
     }
 
     const capture = {
@@ -109,7 +112,7 @@ export class CaptureFlow {
 
     const bundle = bundleId
       ? await this.deps.store.appendCapture(bundleId, capture)
-      : await this.deps.store.createBundle(capture)
+      : await this.deps.store.createBundle(capture, name ? { name } : {})
 
     await this.deps.tracker.record(bundle.id, pending.takenAt)
 

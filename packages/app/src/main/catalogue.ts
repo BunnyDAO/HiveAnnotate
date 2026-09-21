@@ -134,6 +134,8 @@ export class Catalogue {
 
     ipcMain.handle('catalogue:close-bundle', async (_e, id: string) => this.store.closeBundle(id))
 
+    ipcMain.handle('catalogue:reopen-bundle', async (_e, id: string) => this.store.reopenBundle(id))
+
     ipcMain.handle('catalogue:handoff', async (_e, p: { id: string; adapterId: string }) => {
       const bundle = await this.store.getBundle(p.id)
       await this.registry.handoff(p.adapterId, {

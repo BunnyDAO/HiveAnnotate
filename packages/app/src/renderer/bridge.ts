@@ -77,6 +77,7 @@ export interface CatalogueBridge {
   deleteCapture: (id: string, index: number) => Promise<unknown>
   moveCapture: (from: string, index: number, to: string | null) => Promise<unknown>
   closeBundle: (id: string) => Promise<unknown>
+  reopenBundle: (id: string) => Promise<unknown>
   handoff: (id: string, adapterId: string) => Promise<unknown>
   adapters: () => Promise<{ id: string; label: string }[]>
   onRefresh?: (fn: () => void) => void

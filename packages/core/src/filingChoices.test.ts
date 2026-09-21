@@ -8,11 +8,11 @@ const bundles = [
 ]
 
 describe('the filing-into choices', () => {
-  it('preselects the active bundle and offers a new one right beside it', () => {
+  it('preselects the active bundle and offers a new one at the end', () => {
     const choices = filingChoices({ kind: 'append', bundleId: 'b-sidebar' }, bundles)
 
     expect(choices[0]).toMatchObject({ label: 'sidebar collapses', isDefault: true, target: { kind: 'active' } })
-    expect(choices[1]).toMatchObject({ isNew: true, target: { kind: 'new' }, isDefault: false })
+    expect(choices.at(-1)).toMatchObject({ isNew: true, target: { kind: 'new' }, isDefault: false })
   })
 
   it('does not list the active bundle twice', () => {
@@ -20,9 +20,9 @@ describe('the filing-into choices', () => {
     expect(choices.filter((c) => c.key === 'b-sidebar')).toHaveLength(1)
   })
 
-  it('offers the other open bundles after the new one', () => {
+  it('keeps the existing bundles together, with New bundle after them', () => {
     const labels = filingChoices({ kind: 'append', bundleId: 'b-sidebar' }, bundles).map((c) => c.label)
-    expect(labels).toEqual(['sidebar collapses', 'New bundle', 'stripe webhook retries', 'font flashes on load'])
+    expect(labels).toEqual(['sidebar collapses', 'stripe webhook retries', 'font flashes on load', 'New bundle'])
   })
 
   it('preselects a new bundle when there is no active one, without offering it twice', () => {
@@ -49,6 +49,12 @@ describe('the filing-into choices', () => {
   it('caps the list so the bar stays one row', () => {
     const many = Array.from({ length: 20 }, (_, i) => ({ id: `b${i}`, intent: `bundle ${i}` }))
     expect(filingChoices({ kind: 'new' }, many)).toHaveLength(MAX_CHOICES)
+    expect(filingChoices({ kind: 'append', bundleId: 'b0' }, many)).toHaveLength(MAX_CHOICES)
+  })
+
+  it('never drops New bundle when the list is capped', () => {
+    const many = Array.from({ length: 20 }, (_, i) => ({ id: `b${i}`, intent: `bundle ${i}` }))
+    expect(filingChoices({ kind: 'append', bundleId: 'b0' }, many).at(-1)?.isNew).toBe(true)
   })
 
   it('still labels the default if the active bundle is missing from the list', () => {

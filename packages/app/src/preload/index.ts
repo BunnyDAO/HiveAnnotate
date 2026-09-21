@@ -45,6 +45,7 @@ contextBridge.exposeInMainWorld('hive', {
     moveCapture: (from: string, index: number, to: string | null) =>
       ipcRenderer.invoke('catalogue:move-capture', { from, index, to }),
     closeBundle: (id: string) => ipcRenderer.invoke('catalogue:close-bundle', id),
+    reopenBundle: (id: string) => ipcRenderer.invoke('catalogue:reopen-bundle', id),
     handoff: (id: string, adapterId: string) =>
       ipcRenderer.invoke('catalogue:handoff', { id, adapterId }),
     adapters: () => ipcRenderer.invoke('catalogue:adapters'),
