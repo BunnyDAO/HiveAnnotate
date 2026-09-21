@@ -34,6 +34,35 @@ version. Do not build product UI here.
 - [ ] Behavior is recorded for the current macOS version and one prior major version.
 - [ ] A written verdict lands in the issue: which mechanism works, what is required for focus-return, and any conditions under which it fails.
 
+## How to run it
+
+```bash
+npx electron spikes/overlay-focus/main.mjs
+```
+
+The harness registers **⌥⇧1** (not ⌥1, to avoid colliding with the real hotkey later). It
+hides its own dock tile, records the frontmost app via `lsappinfo` — which needs no
+Accessibility permission, unlike System Events scripting, which would prompt mid-spike and
+contaminate the measurement — then shows a transparent `type: 'panel'` window with
+`showInactive()` followed by `focus()`.
+
+The panel reports on screen: whether it became key, what the frontmost app is after showing,
+whether focus was stolen, and whether focus was handed back on dismiss.
+
+### The script to follow
+
+1. Open **TextEdit**, type a sentence, and leave the caret mid-sentence. Select a couple of words.
+2. Press **⌥⇧1**.
+3. Type into the panel. Watch for `FIRST KEY RECEIVED` and `did NOT steal focus`.
+4. Press **Esc**.
+5. Look at TextEdit: **is the caret where you left it, and is the selection still there?**
+6. Repeat over a **browser** (with a focused text field mid-typing) and over a **terminal**
+   running something interactive.
+7. Repeat with a **fullscreen** app.
+
+Step 5 is the real test. `panel.isFocused()` being true is necessary but not sufficient — the
+app underneath can report as frontmost while having silently dropped its selection.
+
 ## If the spike fails
 
 Record which rung is taken and why:

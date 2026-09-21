@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>overlay focus spike</title>
+<style>
+  body { margin: 0; font-family: 'IBM Plex Sans', system-ui, sans-serif; background: transparent; }
+  .panel { box-sizing: border-box; height: 100vh; padding: 18px 20px; border-radius: 14px;
+           background: #1E1B16; border: 1px solid #3A342B; color: #F5F1E8;
+           box-shadow: 0 28px 70px rgba(0,0,0,.7); display: flex; flex-direction: column; gap: 12px; }
+  .row { display: flex; align-items: center; gap: 10px; font-size: 11px; color: #A89F8D; }
+  .tag { font-family: ui-monospace, monospace; font-size: 10px; letter-spacing: .1em; color: #E8A33D; }
+  input { width: 100%; box-sizing: border-box; background: transparent; border: none; outline: none;
+          font-size: 18px; color: #F5F1E8; padding: 2px 0 10px; }
+  input::placeholder { color: #6E6558; }
+  .log { flex: 1; overflow: auto; font-family: ui-monospace, monospace; font-size: 11px;
+         line-height: 1.7; color: #A89F8D; border-top: 1px solid #2A261F; padding-top: 10px; }
+  .ok { color: #7FB87F; } .bad { color: #D9634F; } .hint { color: #6E6558; }
+</style>
+</head>
+<body>
+  <div class="panel">
+    <div class="row">
+      <span class="tag">SPIKE</span>
+      <span>type here — the app behind must not flinch</span>
+      <span style="flex:1"></span>
+      <span class="hint">esc = dismiss + hand focus back</span>
+    </div>
+    <input id="field" type="text" placeholder="type something…" aria-label="spike input" />
+    <div class="log" id="log"></div>
+  </div>
+
+<script>
+  const log = document.getElementById('log')
+  const field = document.getElementById('field')
+  let keys = 0
+
+  function line(text, cls) {
+    const el = document.createElement('div')
+    if (cls) el.className = cls
+    el.textContent = text
+    log.appendChild(el)
+    log.scrollTop = log.scrollHeight
+  }
+
+  window.spike.onShown(({ previous }) => {
+    keys = 0
+    log.textContent = ''
+    field.value = ''
+    line(`shown over: ${previous?.name ?? 'unknown'}`)
+    field.focus()
+  })
+
+  window.spike.onReport((r) => {
+    line(`panel.isFocused(): ${r.panelIsFocused}`, r.panelIsFocused ? 'ok' : 'bad')
+    line(`frontmost after show: ${r.frontmostAfterShow}`)
+    line(
+      r.stoleFocus ? 'STOLE FOCUS — the app underneath was deactivated' : 'did NOT steal focus',
+      r.stoleFocus ? 'bad' : 'ok',
+    )
+  })
+
+  field.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') {
+      window.spike.dismiss().then(({ restored, target }) => {
+        line(restored ? `handed focus back to ${target}` : `could NOT hand focus back`, restored ? 'ok' : 'bad')
+      })
+      return
+    }
+    keys++
+    if (keys === 1) line('FIRST KEY RECEIVED — the panel is key', 'ok')
+  })
+</script>
+</body>
+</html>
