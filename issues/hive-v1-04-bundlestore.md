@@ -2,7 +2,7 @@
 id: hive-v1-04
 title: BundleStore — the on-disk format, slugs, append/move/delete, bundle.md
 type: AFK
-status: open
+status: done
 blocked_by: [hive-v1-01]
 parent: docs/prd/hiveannotate-v1.md
 ---
@@ -35,14 +35,28 @@ source — regenerate it on every mutation.
 
 ## Acceptance criteria
 
-- [ ] Create → append → read round-trips through disk with content intact. **(mandatory)**
-- [ ] Slug generation is deterministic, handles collisions, and handles non-ASCII and emoji first notes without producing an invalid directory name. **(mandatory)**
-- [ ] Captures keep their capture order across append, and numbering does not reuse a deleted index. **(mandatory)**
-- [ ] Moving a Capture between Bundles updates both manifests and both `bundle.md` files, and moves the image file. **(mandatory)**
-- [ ] Deleting a Capture leaves the Bundle valid; deleting the last Capture leaves a valid empty Bundle rather than a corrupt one. **(mandatory)**
-- [ ] `bundle.md` output is asserted against a golden file. **(mandatory)**
-- [ ] Every test runs against a temp directory; none touches the real `~/HiveAnnotate`. **(mandatory)**
-- [ ] A hand-corrupted or truncated `manifest.json` is reported as an error, never silently treated as an empty Bundle.
+- [x] Create → append → read round-trips through disk with content intact. **(mandatory)**
+- [x] Slug generation is deterministic, handles collisions, and handles non-ASCII and emoji first notes without producing an invalid directory name. **(mandatory)**
+- [x] Captures keep their capture order across append, and numbering does not reuse a deleted index. **(mandatory)**
+- [x] Moving a Capture between Bundles updates both manifests and both `bundle.md` files, and moves the image file. **(mandatory)**
+- [x] Deleting a Capture leaves the Bundle valid; deleting the last Capture leaves a valid empty Bundle rather than a corrupt one. **(mandatory)**
+- [x] `bundle.md` output is asserted against a golden file. **(mandatory)**
+- [x] Every test runs against a temp directory; none touches the real `~/HiveAnnotate`. **(mandatory)**
+- [x] A hand-corrupted or truncated `manifest.json` is reported as an error, never silently treated as an empty Bundle.
+
+## Notes
+
+- `BundleStore` takes its root as a constructor argument with **no default**, so no test can
+  reach `~/HiveAnnotate` by accident. `defaultBundleRoot()` is the single place that knows the
+  production location.
+- A vacated capture number is never reissued — by deletion or by a move out. Reusing one would
+  silently attach a previous observation's evidence to a new one.
+- Editing the first Note does not re-seed the Intent. Seeding happens once, at creation; after
+  that the Intent is its own thing.
+- `editIntent` never recomputes the bundle id, so a pointer already handed to an agent still
+  resolves.
+- A damaged manifest is an error on read and a flagged entry in the listing — never silently
+  an empty Bundle, which would look like the user's captures had vanished.
 
 ## Blocked by
 

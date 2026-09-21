@@ -13,6 +13,10 @@
     // Explicit .ts specifiers. Packages are consumed as source, and Node's
     // native type stripping resolves specifiers literally rather than
     // rewriting .js -> .ts the way bundlers do.
-    "allowImportingTsExtensions": true
+    "allowImportingTsExtensions": true,
+    // Reject any syntax Node's type stripping cannot erase (parameter
+    // properties, enums, namespaces). Without this, core compiles fine and
+    // then fails to load in a bare Node process at runtime.
+    "erasableSyntaxOnly": true
   }
 }
