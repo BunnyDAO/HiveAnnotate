@@ -1,10 +1,12 @@
-import { app, Tray, Menu, BrowserWindow, nativeImage } from 'electron'
+import { app, Tray, Menu, BrowserWindow, nativeImage, protocol } from 'electron'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { APP_NAME, BUNDLE_ID } from '@hiveannotate/core'
 import type { CaptureIntent } from '@hiveannotate/core'
+import { defaultBundleRoot } from '@hiveannotate/core'
 import { startHotkeys } from './hotkeys.ts'
 import { CaptureSession } from './captureSession.ts'
+import { Catalogue, registerCaptureProtocol } from './catalogue.ts'
 import { buildAdapterRegistry } from './handoff.ts'
 import type { HotkeyService } from './hotkeys.ts'
 
@@ -15,6 +17,11 @@ const here = fileURLToPath(new URL('.', import.meta.url))
 // window this process opens on demand. LSUIElement in the packaged Info.plist
 // does this for the built app; dock.hide() covers `electron-vite dev`.
 app.dock?.hide()
+
+// Must be declared before the app is ready, or protocol.handle refuses it.
+protocol.registerSchemesAsPrivileged([
+  { scheme: 'hive-capture', privileges: { standard: true, secure: true, supportFetchAPI: true } },
+])
 
 let tray: Tray | null = null
 let aboutWindow: BrowserWindow | null = null
@@ -49,6 +56,8 @@ function showAbout(): void {
   else void aboutWindow.loadFile(join(here, '../renderer/index.html'))
 }
 
+let catalogue: Catalogue | null = null
+
 function renderTrayMenu(): void {
   if (!tray) return
 
@@ -74,6 +83,7 @@ function renderTrayMenu(): void {
         : []),
       ...chordItems,
       { type: 'separator' },
+      { label: 'Open Catalogue', click: () => catalogue?.open() },
       { label: 'About', click: showAbout },
       { type: 'separator' },
       { label: 'Quit', role: 'quit' },
@@ -106,7 +116,11 @@ function onCaptureIntent(intent: CaptureIntent): void {
 void app.whenReady().then(() => {
   buildTray()
 
-  session = new CaptureSession(buildAdapterRegistry())
+  registerCaptureProtocol(defaultBundleRoot())
+
+  const registry = buildAdapterRegistry()
+  session = new CaptureSession(registry)
+  catalogue = new Catalogue(registry)
 
   hotkeys = startHotkeys(onCaptureIntent)
   for (const { chord, registered } of hotkeys.registrations) {
@@ -249,6 +263,45 @@ if (process.argv.includes('--self-test')) {
         bundle.captures.some((c) => c.note === 'note typed during failure'),
         bundle.captures.map((c) => c.note).join(' | '),
       )
+    }
+
+    // --- the Catalogue -----------------------------------------------------
+    catalogue?.open()
+    await wait(2500)
+    const cat = BrowserWindow.getAllWindows().find((w) => w.getTitle() === 'HiveAnnotate' && w.isVisible())
+    check('catalogue: window opened', Boolean(cat))
+
+    if (cat) {
+      const text = await cat.webContents.executeJavaScript('document.body.innerText')
+      check('catalogue: lists the bundle', /sidebar bug/i.test(text), '')
+      check('catalogue: shows the capture count', /3 CAPTURES/i.test(text), '')
+
+      // The images come through a scoped custom protocol; naturalWidth proves
+      // they actually decoded rather than silently 404ing.
+      const loaded = await cat.webContents.executeJavaScript(
+        `(async () => { await new Promise(r => setTimeout(r, 800));
+          const imgs = [...document.querySelectorAll('img')];
+          return { count: imgs.length, decoded: imgs.filter(i => i.naturalWidth > 0).length } })()`,
+      )
+      check('catalogue: capture images loaded', loaded.count > 0 && loaded.decoded === loaded.count, `${loaded.decoded}/${loaded.count} decoded`)
+
+      // A mutation driven through the real bridge, then verified on disk.
+      await cat.webContents.executeJavaScript(
+        `window.hive.catalogue.editNote(${JSON.stringify(bundles[0]?.id ?? '')}, 1, 'edited from the catalogue')`,
+      )
+      await wait(800)
+      const reread = await store.getBundle(bundles[0]?.id ?? '')
+      check(
+        'catalogue: editing a note persisted through BundleStore',
+        reread.captures[0]?.note === 'edited from the catalogue',
+        reread.captures[0]?.note ?? '',
+      )
+
+      const md = await (await import('node:fs/promises')).readFile(
+        `${defaultBundleRoot()}/${bundles[0]?.id}/bundle.md`,
+        'utf8',
+      )
+      check('catalogue: bundle.md was regenerated', md.includes('edited from the catalogue'), '')
     }
 
     const failed = results.filter((r) => r.startsWith('FAIL'))

@@ -37,6 +37,48 @@ export interface FailurePayload {
   explanation: FailureExplanation
 }
 
+export interface BundleSummary {
+  id: string
+  intent: string
+  status: string
+  createdAt: string
+  captureCount: number
+  damaged?: true
+}
+
+export interface CaptureView {
+  index: number
+  file: string
+  src: string
+  note: string
+  kind: string
+  app?: string
+  width: number
+  height: number
+  takenAt: string
+}
+
+export interface BundleView {
+  id: string
+  intent: string
+  status: string
+  createdAt: string
+  captures: CaptureView[]
+  pointer: string
+}
+
+export interface CatalogueBridge {
+  list: () => Promise<BundleSummary[]>
+  get: (id: string) => Promise<BundleView>
+  editNote: (id: string, index: number, note: string) => Promise<unknown>
+  editIntent: (id: string, intent: string) => Promise<unknown>
+  deleteCapture: (id: string, index: number) => Promise<unknown>
+  moveCapture: (from: string, index: number, to: string | null) => Promise<unknown>
+  closeBundle: (id: string) => Promise<unknown>
+  handoff: (id: string, adapterId: string) => Promise<unknown>
+  adapters: () => Promise<{ id: string; label: string }[]>
+}
+
 export interface HiveBridge {
   appName: string
   bundleId: string
@@ -48,6 +90,7 @@ export interface HiveBridge {
   wholeScreen?: () => Promise<unknown>
   openSettings?: (pane: string) => Promise<unknown>
   onRegionBounds?: (fn: (bounds: Rect) => void) => void
+  catalogue?: CatalogueBridge
   pickRegion?: (rect: Rect) => Promise<unknown>
   cancelRegion?: () => Promise<unknown>
 }

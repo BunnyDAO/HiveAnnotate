@@ -32,4 +32,21 @@ contextBridge.exposeInMainWorld('hive', {
     ipcRenderer.on('region:bounds', (_e, bounds: unknown) => fn(bounds)),
   pickRegion: (rect: unknown) => ipcRenderer.invoke('region:pick', rect),
   cancelRegion: () => ipcRenderer.invoke('region:cancel'),
+
+  catalogue: {
+    list: () => ipcRenderer.invoke('catalogue:list'),
+    get: (id: string) => ipcRenderer.invoke('catalogue:get', id),
+    editNote: (id: string, index: number, note: string) =>
+      ipcRenderer.invoke('catalogue:edit-note', { id, index, note }),
+    editIntent: (id: string, intent: string) =>
+      ipcRenderer.invoke('catalogue:edit-intent', { id, intent }),
+    deleteCapture: (id: string, index: number) =>
+      ipcRenderer.invoke('catalogue:delete-capture', { id, index }),
+    moveCapture: (from: string, index: number, to: string | null) =>
+      ipcRenderer.invoke('catalogue:move-capture', { from, index, to }),
+    closeBundle: (id: string) => ipcRenderer.invoke('catalogue:close-bundle', id),
+    handoff: (id: string, adapterId: string) =>
+      ipcRenderer.invoke('catalogue:handoff', { id, adapterId }),
+    adapters: () => ipcRenderer.invoke('catalogue:adapters'),
+  },
 })

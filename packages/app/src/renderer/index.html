@@ -2,10 +2,22 @@
 <html lang="en">
   <head>
     <meta charset="utf-8" />
-    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'" />
+    <!-- hive-capture: is the scoped scheme that serves capture images from the
+         bundle root. Without it here, every thumbnail silently fails to load. -->
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self'; img-src 'self' hive-capture: data:; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com"
+    />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <!-- Falls back to system-ui offline; the app never depends on this. -->
+    <link
+      rel="stylesheet"
+      href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap"
+    />
     <title>HiveAnnotate</title>
   </head>
-  <body>
+  <body style="margin: 0; background: #14120E">
     <div id="root"></div>
     <script type="module" src="./main.tsx"></script>
   </body>
