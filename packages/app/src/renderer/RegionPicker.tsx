@@ -77,7 +77,7 @@ export function RegionPicker(): React.JSX.Element {
 
       // Letters mark cells; the selection is the bounding box of everything
       // marked, so the first press anchors and later presses extend.
-      const next = selection.mark(key)
+      const next = selection.toggle(key)
       if (next) {
         e.preventDefault()
         setSelection(next)
@@ -185,12 +185,12 @@ export function RegionPicker(): React.JSX.Element {
         <span style={{ fontFamily: mono, fontSize: 11, color: honey }}>
           {rect.x}, {rect.y} · {rect.width} × {rect.height}
         </span>
-        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 7 }}><Key>⏎</Key><span style={{ fontSize: 12, color: '#A89F8D' }}>capture</span></span>
-        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 7 }}><Key>QWE</Key><span style={{ fontSize: 12, color: '#A89F8D' }}>mark · press more to extend</span></span>
-        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 7 }}><Key>⌫</Key><span style={{ fontSize: 12, color: '#A89F8D' }}>undo</span></span>
-        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 7 }}><Key>␣</Key><span style={{ fontSize: 12, color: '#A89F8D' }}>zoom in</span></span>
-        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 7 }}><Key>⇧←→</Key><span style={{ fontSize: 12, color: '#A89F8D' }}>nudge</span></span>
-        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 7 }}><Key>⎋</Key><span style={{ fontSize: 12, color: '#A89F8D' }}>cancel</span></span>
+        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 7 }}><Key>Enter</Key><span style={{ fontSize: 12, color: '#A89F8D' }}>capture</span></span>
+        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 7 }}><Key>Q W E …</Key><span style={{ fontSize: 12, color: '#A89F8D' }}>select a square · press again to unselect</span></span>
+        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 7 }}><Key>Delete</Key><span style={{ fontSize: 12, color: '#A89F8D' }}>undo</span></span>
+        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 7 }}><Key>Space</Key><span style={{ fontSize: 12, color: '#A89F8D' }}>zoom in</span></span>
+        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 7 }}><Key>Shift + arrows</Key><span style={{ fontSize: 12, color: '#A89F8D' }}>nudge edge</span></span>
+        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 7 }}><Key>Esc</Key><span style={{ fontSize: 12, color: '#A89F8D' }}>cancel</span></span>
       </div>
     </div>
   )

@@ -227,7 +227,7 @@ export function CaptureBar(): React.JSX.Element {
             )}
             {failure.explanation.alternative && (
               <span style={{ display: 'inline-flex', alignItems: 'center', gap: 7 }}>
-                <Key>⌥2</Key>
+                <Key>Option + 2</Key>
                 <button
                   type="button"
                   onClick={() => void window.hive?.wholeScreen?.()}
@@ -238,7 +238,7 @@ export function CaptureBar(): React.JSX.Element {
               </span>
             )}
             <span style={{ display: 'inline-flex', alignItems: 'center', gap: 7 }}>
-              <Key>⏎</Key>
+              <Key>Enter</Key>
               <span style={{ fontSize: 12, color: muted }}>{failure.explanation.retryLabel}</span>
             </span>
           </div>
@@ -246,11 +246,11 @@ export function CaptureBar(): React.JSX.Element {
       )}
 
       <div style={{ borderTop: `1px solid #2A261F`, paddingTop: 13, display: 'flex', alignItems: 'center', gap: 16, flexWrap: 'wrap' }}>
-        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 7 }}><Key>⏎</Key><span style={{ fontSize: 12, color: muted }}>file it</span></span>
-        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 7 }}><Key>⇧⏎</Key><span style={{ fontSize: 12, color: muted }}>file + new bundle</span></span>
-        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 7 }}><Key>⇥</Key><span style={{ fontSize: 12, color: muted }}>switch bundle</span></span>
-        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 7 }}><Key>⌘⏎</Key><span style={{ fontSize: 12, color: muted }}>file + copy</span></span>
-        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 7 }}><Key>⎋</Key><span style={{ fontSize: 12, color: muted }}>discard</span></span>
+        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 7 }}><Key>Enter</Key><span style={{ fontSize: 12, color: muted }}>save</span></span>
+        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 7 }}><Key>Shift + Enter</Key><span style={{ fontSize: 12, color: muted }}>save as a new bundle</span></span>
+        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 7 }}><Key>Tab</Key><span style={{ fontSize: 12, color: muted }}>choose bundle</span></span>
+        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 7 }}><Key>Cmd + Enter</Key><span style={{ fontSize: 12, color: muted }}>save + copy link</span></span>
+        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 7 }}><Key>Esc</Key><span style={{ fontSize: 12, color: muted }}>throw away</span></span>
       </div>
     </div>
   )

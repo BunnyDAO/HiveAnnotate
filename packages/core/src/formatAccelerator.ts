@@ -1,40 +1,42 @@
 /**
- * Shows an Electron accelerator ("Alt+1") the way a Mac user reads it ("⌥1").
+ * Shows an Electron accelerator ("Alt+1") the way a Mac user says it
+ * ("Option + 1").
  *
- * Electron's accelerator syntax says Alt, but the key on a Mac keyboard says
- * Option and is drawn as ⌥ everywhere in macOS. Showing "Alt+1" in the menu
- * bar sent the user looking for a key they do not have.
+ * Electron's syntax says Alt, but the key on a Mac says Option — the user was
+ * sent looking for a key they do not have. A first fix rendered the macOS
+ * symbols (⌥1), and the user then said the symbols were not clear either, so
+ * shortcuts are spelled out in words.
  */
 
 const MODIFIERS: Record<string, string> = {
-  control: '⌃',
-  ctrl: '⌃',
-  alt: '⌥',
-  option: '⌥',
-  shift: '⇧',
-  command: '⌘',
-  cmd: '⌘',
-  commandorcontrol: '⌘',
-  cmdorctrl: '⌘',
-  super: '⌘',
-  meta: '⌘',
+  control: 'Control',
+  ctrl: 'Control',
+  alt: 'Option',
+  option: 'Option',
+  shift: 'Shift',
+  command: 'Cmd',
+  cmd: 'Cmd',
+  commandorcontrol: 'Cmd',
+  cmdorctrl: 'Cmd',
+  super: 'Cmd',
+  meta: 'Cmd',
 }
 
-/** The order macOS menus always use: Control, Option, Shift, Command. */
-const ORDER = ['⌃', '⌥', '⇧', '⌘']
+/** The order macOS always lists modifiers in: Control, Option, Shift, Command. */
+const ORDER = ['Control', 'Option', 'Shift', 'Cmd']
 
 const KEYS: Record<string, string> = {
-  enter: '↩',
-  return: '↩',
-  escape: '⎋',
-  esc: '⎋',
-  tab: '⇥',
-  backspace: '⌫',
-  delete: '⌦',
-  up: '↑',
-  down: '↓',
-  left: '←',
-  right: '→',
+  enter: 'Enter',
+  return: 'Enter',
+  escape: 'Esc',
+  esc: 'Esc',
+  tab: 'Tab',
+  backspace: 'Delete',
+  delete: 'Forward Delete',
+  up: 'Up',
+  down: 'Down',
+  left: 'Left',
+  right: 'Right',
   space: 'Space',
 }
 
@@ -44,10 +46,10 @@ export function formatAccelerator(accelerator: string): string {
   let key = ''
 
   for (const part of parts) {
-    const symbol = MODIFIERS[part.toLowerCase()]
-    if (symbol) modifiers.add(symbol)
+    const word = MODIFIERS[part.toLowerCase()]
+    if (word) modifiers.add(word)
     else key = KEYS[part.toLowerCase()] ?? part.toUpperCase()
   }
 
-  return ORDER.filter((m) => modifiers.has(m)).join('') + key
+  return [...ORDER.filter((m) => modifiers.has(m)), key].filter(Boolean).join(' + ')
 }

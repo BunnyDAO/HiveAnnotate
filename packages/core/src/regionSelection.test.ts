@@ -11,7 +11,7 @@ function press(...keys: string[]): RegionSelection {
       sel = sel.descend()
       continue
     }
-    const next = sel.mark(key)
+    const next = sel.toggle(key)
     if (!next) throw new Error(`key ${key} was rejected`)
     sel = next
   }
@@ -24,7 +24,7 @@ describe('the grid', () => {
   })
 
   it('ignores a key that is not on the grid', () => {
-    expect(new RegionSelection(SCREEN).mark('k')).toBeNull()
+    expect(new RegionSelection(SCREEN).toggle('k')).toBeNull()
   })
 
   it('accepts the key whatever its case', () => {
@@ -68,8 +68,24 @@ describe('later letters extend the box', () => {
     expect(press('e', 'z').rect).toEqual(press('z', 'e').rect)
   })
 
-  it('pressing the same letter twice changes nothing', () => {
-    expect(press('s', 's').rect).toEqual(press('s').rect)
+  it('pressing a marked letter again unmarks it', () => {
+    // q, e, then e again: back to just q.
+    expect(press('q', 'e', 'e').rect).toEqual(press('q').rect)
+  })
+
+  it('unmarking a middle cell shrinks the box to the rest', () => {
+    const sel = press('q', 'e', 'c', 'c')
+    expect(sel.rect).toEqual(press('q', 'e').rect)
+  })
+
+  it('unmarking the only cell returns to the whole grid', () => {
+    const sel = press('s', 's')
+    expect(sel.rect).toEqual(SCREEN)
+    expect(GRID_KEYS.some((_, i) => sel.isMarked(i))).toBe(false)
+  })
+
+  it('an unmark is undone by ⌫ like any other key', () => {
+    expect(press('q', 'e', 'e').back().rect).toEqual(press('q', 'e').rect)
   })
 
   it('reaches a shape subdivision could not: the left two thirds', () => {
@@ -99,7 +115,7 @@ describe('␣ descends', () => {
 
   it('refuses to descend past the point of usefulness', () => {
     let sel = new RegionSelection(SCREEN)
-    for (let i = 0; i < 12; i++) sel = sel.mark('q')!.descend()
+    for (let i = 0; i < 12; i++) sel = sel.toggle('q')!.descend()
     expect(sel.rect.width).toBeGreaterThan(1)
     expect(sel.rect.height).toBeGreaterThan(1)
   })
@@ -129,7 +145,7 @@ describe('⌫ undoes one key at a time', () => {
 describe('no cumulative drift', () => {
   it.each([0, 1, 2, 3])('the nine cells tile the grid exactly after %i descents', (descents) => {
     let sel = new RegionSelection(SCREEN)
-    for (let i = 0; i < descents; i++) sel = sel.mark('s')!.descend()
+    for (let i = 0; i < descents; i++) sel = sel.toggle('s')!.descend()
 
     const area = sel.cells().reduce((sum, c) => sum + c.width * c.height, 0)
     expect(area).toBe(sel.rect.width * sel.rect.height)
@@ -143,7 +159,7 @@ describe('no cumulative drift', () => {
 
   it('stays inside the screen however deep it goes', () => {
     let sel = new RegionSelection(SCREEN)
-    for (let i = 0; i < 4; i++) sel = sel.mark('c')!.descend()
+    for (let i = 0; i < 4; i++) sel = sel.toggle('c')!.descend()
     const r = sel.rect
     expect(r.x).toBeGreaterThanOrEqual(SCREEN.x)
     expect(r.x + r.width).toBeLessThanOrEqual(SCREEN.x + SCREEN.width)
@@ -177,7 +193,7 @@ describe('⇧ + arrows — nudge an edge', () => {
 
   it('is superseded by the next letter, which redefines the box', () => {
     const nudged = press('q').nudge('right').nudge('right')
-    expect(nudged.mark('e')!.rect).toEqual(press('q', 'e').rect)
+    expect(nudged.toggle('e')!.rect).toEqual(press('q', 'e').rect)
   })
 })
 
@@ -189,7 +205,7 @@ describe('the rectangle handed to screencapture', () => {
 
   it('works on a display that does not start at the origin', () => {
     const secondary = { x: 1800, y: -200, width: 1440, height: 900 }
-    const sel = new RegionSelection(secondary).mark('q')!
+    const sel = new RegionSelection(secondary).toggle('q')!
     expect(sel.rect).toEqual({ x: 1800, y: -200, width: 480, height: 300 })
   })
 })

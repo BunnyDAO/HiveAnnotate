@@ -219,6 +219,39 @@ if (process.argv.includes('--self-test')) {
       }
     }
 
+    // --- the picker: letters toggle, and every hint is in plain words ------
+    {
+      const GLYPHS = /[⌃⌥⇧⌘⏎↩⎋⇥⌫␣]/
+      await session?.capture('region')
+      await wait(1500)
+      const picker = visible()
+      if (picker) {
+        type(picker, ['q', 'e', 'e'])
+        await wait(400)
+        const text: string = await picker.webContents.executeJavaScript('document.body.innerText')
+        // q, e, then e again: back to just q — the top-left ninth.
+        check('picker: pressing a letter again unselects it', text.includes('0, 0 · 600 × 390'),
+          (text.match(/-?\d+, -?\d+ · \d+ × \d+/) ?? ['no readout'])[0])
+        check('picker: hints are words, not symbols', !GLYPHS.test(text),
+          (text.match(GLYPHS) ?? ['none'])[0])
+        type(picker, ['Escape'])
+        await wait(800)
+      } else {
+        check('picker: pressing a letter again unselects it', false, 'picker did not appear')
+      }
+
+      await session?.capture('screen')
+      await wait(1500)
+      const wordsBar = visible()
+      if (wordsBar) {
+        const text: string = await wordsBar.webContents.executeJavaScript('document.body.innerText')
+        check('capture bar: hints are words, not symbols', !GLYPHS.test(text) && /Shift \+ Enter/.test(text),
+          (text.match(GLYPHS) ?? ['none'])[0])
+        type(wordsBar, ['Escape'])
+        await wait(800)
+      }
+    }
+
     // --- accumulate: q then e is the whole top row (hive-v1-17) -----------
     await session?.capture('region')
     await wait(1500)
@@ -409,9 +442,10 @@ if (process.argv.includes('--self-test')) {
       check('chords: Option+4 opens the Catalogue', find('catalogue')?.chord.accelerator === 'Alt+4' && Boolean(find('catalogue')?.registered), '')
       const labels = trayMenuLabels()
       check(
-        'tray: shortcuts read as ⌥, never Alt',
-        labels.some((l) => l.includes('⌥1')) && !labels.some((l) => /\bAlt\b/.test(l)),
-        labels.filter((l) => /⌥|Alt/.test(l)).join(' | '),
+        'tray: shortcuts read as "Option + 1", never Alt or a symbol',
+        labels.some((l) => l.includes('Option + 1')) &&
+          !labels.some((l) => /\bAlt\b|[⌃⌥⇧⌘↩⎋⇥⌫␣]/.test(l)),
+        labels.filter((l) => /Option|Alt|⌥/.test(l)).join(' | '),
       )
     }
 

@@ -1,10 +1,11 @@
 /**
  * Picking an arbitrary rectangle with the keyboard.
  *
- * The grid is the home-row block. **Letters mark cells and the selection is the
- * bounding box of everything marked** — the first press anchors, each later
- * press extends. That makes it a corner-to-corner drag done with the keyboard:
- * Q then C is the whole grid, Q then E is the top row.
+ * The grid is the home-row block. **Letters toggle cells and the selection is
+ * the bounding box of everything marked** — the first press anchors, each later
+ * press extends, and pressing a marked letter again removes it. That makes it a
+ * corner-to-corner drag done with the keyboard: Q then C is the whole grid,
+ * Q then E is the top row.
  *
  * Precision comes from descending: ␣ makes the current box the new grid, so the
  * next letters subdivide it. S ␣ D reaches the same small rectangle that two
@@ -75,16 +76,21 @@ export class RegionSelection {
     return this.state.marked.includes(index)
   }
 
-  /** A letter: anchor if first, otherwise extend the box to include this cell. */
-  mark(key: string): RegionSelection | null {
+  /**
+   * A letter toggles its cell. Unmarked, it joins the selection (the first
+   * anchors, later ones extend the box). Already marked, pressing it again
+   * takes it back out — the user asked for exactly this after trying it: hit
+   * E by mistake, hit E again.
+   */
+  toggle(key: string): RegionSelection | null {
     const index = GRID_KEYS.indexOf(key.toLowerCase() as (typeof GRID_KEYS)[number])
     if (index === -1) return null
 
-    // A fresh mark redefines the box, so any nudge that came before is spent.
     const marked = this.state.marked.includes(index)
-      ? this.state.marked
+      ? this.state.marked.filter((i) => i !== index)
       : [...this.state.marked, index]
 
+    // Any change of marks redefines the box, so a nudge that came before is spent.
     return this.push({ grid: this.state.grid, marked, override: null })
   }
 
