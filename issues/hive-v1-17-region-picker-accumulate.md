@@ -43,22 +43,40 @@ from `⌫` and becomes redundant once another letter can extend the selection.
 
 ## Acceptance criteria
 
-- [ ] One letter selects that ninth; the readout and highlight match. **(mandatory)**
-- [ ] A second letter extends the selection to the bounding box of both cells, in any order — `Q` then `C` and `C` then `Q` give the same rectangle. **(mandatory)**
-- [ ] `Q`+`E` is exactly the top row; `Q`+`C` is exactly the full grid area. **(mandatory)**
-- [ ] `␣` descends: the current box becomes the new grid and the marks clear. **(mandatory)**
-- [ ] `S ␣ D` produces the same rectangle that `S D` produced under subdivision. **(mandatory)**
-- [ ] `⌫` undoes exactly one key, whether that key was a mark or a descend. **(mandatory)**
-- [ ] Marked cells are visibly distinct from unmarked ones in the overlay.
-- [ ] Cells still tile their grid exactly at every depth, with no cumulative drift. **(mandatory)**
-- [ ] `⇧`+arrows still nudge an edge of the resulting box, and a later letter press redefines the box from the marks. **(mandatory)**
-- [ ] `⎋` cancels and leaves nothing on disk.
+- [x] One letter selects that ninth; the readout and highlight match. **(mandatory)**
+- [x] A second letter extends the selection to the bounding box of both cells, in any order — `Q` then `C` and `C` then `Q` give the same rectangle. **(mandatory)**
+- [x] `Q`+`E` is exactly the top row; `Q`+`C` is exactly the full grid area. **(mandatory)**
+- [x] `␣` descends: the current box becomes the new grid and the marks clear. **(mandatory)**
+- [x] `S ␣ D` produces the same rectangle that `S D` produced under subdivision. **(mandatory)**
+- [x] `⌫` undoes exactly one key, whether that key was a mark or a descend. **(mandatory)**
+- [x] Marked cells are visibly distinct from unmarked ones in the overlay.
+- [x] Cells still tile their grid exactly at every depth, with no cumulative drift. **(mandatory)**
+- [x] `⇧`+arrows still nudge an edge of the resulting box, and a later letter press redefines the box from the marks. **(mandatory)**
+- [x] `⎋` cancels and leaves nothing on disk.
 
 ## Manual test checklist
 
 - [ ] `⌥3`, press `Q` then `E`, `⏎` — the capture is the top third of the screen, full width.
 - [ ] `⌥3`, press `S`, `␣`, `D`, `⏎` — a small rectangle right of centre.
+- [ ] While picking, the area inside the frame is at full brightness and readable; only the outside is dimmed.
+- [ ] Open a captured region in Preview: **no dim wash, grid lines or letters are baked into the image.**
 - [ ] `⌫` steps back through marks and descents in the order they were made.
+
+## Notes
+
+- Verified end to end: `Q` then `E` captured **3600×780 of a 3600×2338 screen** — full width,
+  exactly a third of the height, a shape subdivision could not reach. `S ␣ D` still captures
+  the same 400×258 rectangle that `S D` did under hive-v1-12.
+- **Spotlight overlay** (raised by the user while this was being built): the selection is a
+  clear hole showing the real screen at full brightness; only the outside is dimmed, at 42%
+  rather than 55%. Grid cells are outlines and letters only — nothing is painted inside the
+  frame, because anything painted there stands between the user and what they are framing.
+- **Real race fixed.** `hide()` was a request, not a guarantee, so a capture could fire while
+  the picker was still on screen and bake the overlay into the screenshot. Hide now resolves
+  on the window's `hide` event plus one composited frame, and the capture awaits it.
+  The self-test had been failing for exactly this reason: the picker was still the visible
+  window when the bar came up, so the test typed the note *into the picker*. A key-by-key
+  trace of both windows made that unambiguous.
 
 ## Blocked by
 

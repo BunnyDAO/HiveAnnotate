@@ -38,8 +38,24 @@ export class RegionOverlay {
     return bounds
   }
 
-  hide(): void {
-    this.window?.hide()
+  /**
+   * Hides the picker and resolves only once it is actually gone.
+   *
+   * hide() is a request to the window server, not a guarantee. If the capture
+   * that follows wins the race, the dim overlay and the grid letters are baked
+   * into the user's screenshot.
+   */
+  async hide(): Promise<void> {
+    const win = this.window
+    if (!win || !win.isVisible()) return
+
+    await new Promise<void>((resolve) => {
+      win.once('hide', () => resolve())
+      win.hide()
+    })
+    // One more composited frame after the hide event, so the pixels on screen
+    // no longer include the overlay when screencapture reads them.
+    await new Promise((resolve) => setTimeout(resolve, 60))
   }
 
   isVisible(): boolean {
@@ -62,6 +78,10 @@ export class RegionOverlay {
         contextIsolation: true,
         nodeIntegration: false,
       },
+    })
+
+    this.window.webContents.on('console-message', (event) => {
+      console.log(`[picker] ${(event as unknown as { message: string }).message}`)
     })
 
     this.window.setAlwaysOnTop(true, 'screen-saver')

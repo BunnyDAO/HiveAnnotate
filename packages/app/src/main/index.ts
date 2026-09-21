@@ -183,7 +183,9 @@ if (process.argv.includes('--self-test')) {
     const picker = visible()
     check('region: picker appeared', Boolean(picker))
     if (picker) {
-      type(picker, ['s', 'd'])
+      // Mark the middle cell, descend, then mark right-of-middle: the
+      // accumulate model's route to the same small rectangle (hive-v1-17).
+      type(picker, ['s', 'Space', 'd'])
       await wait(300)
       type(picker, ['Return'])
       await wait(1800)
@@ -194,6 +196,24 @@ if (process.argv.includes('--self-test')) {
         type(regionBar, [...'console output'])
         await wait(300)
         type(regionBar, ['Return'])
+        await wait(1800)
+      }
+    }
+
+    // --- accumulate: q then e is the whole top row (hive-v1-17) -----------
+    await session?.capture('region')
+    await wait(1500)
+    const widePicker = visible()
+    if (widePicker) {
+      type(widePicker, ['q', 'e'])
+      await wait(300)
+      type(widePicker, ['Return'])
+      await wait(1800)
+      const wideBar = visible()
+      if (wideBar) {
+        type(wideBar, [...'top bar'])
+        await wait(300)
+        type(wideBar, ['Return'])
         await wait(1800)
       }
     }
@@ -241,10 +261,19 @@ if (process.argv.includes('--self-test')) {
     check('one bundle, two captures', bundles.length === 1, `found ${bundles.length} bundle(s)`)
     if (bundles[0]) {
       const bundle = await store.getBundle(bundles[0].id)
-      check('all three captures landed', bundle.captures.length === 3, `${bundle.captures.length} capture(s)`)
+      check('all four captures landed', bundle.captures.length === 4, `${bundle.captures.length} capture(s)`)
+
 
       const screen = bundle.captures[0]
       const region = bundle.captures[1]
+      // q then e marks two corners of the top row, so the box is the full
+      // width and a third of the height — a shape subdivision could not reach.
+      const wide = bundle.captures.find((c) => c.note === 'top bar')
+      check(
+        'accumulate: q then e captured the full-width top row',
+        Boolean(wide && screen && wide.width === screen.width && wide.height < screen.height / 2),
+        wide ? `${wide.width}x${wide.height} of ${screen?.width}x${screen?.height}` : 'missing',
+      )
       check(
         'the screen capture has real pixels',
         Boolean(screen && screen.kind === 'screen' && screen.width > 1000),
@@ -274,7 +303,7 @@ if (process.argv.includes('--self-test')) {
     if (cat) {
       const text = await cat.webContents.executeJavaScript('document.body.innerText')
       check('catalogue: lists the bundle', /sidebar bug/i.test(text), '')
-      check('catalogue: shows the capture count', /3 CAPTURES/i.test(text), '')
+      check('catalogue: shows the capture count', /4 CAPTURES/i.test(text), '')
 
       // The images come through a scoped custom protocol; naturalWidth proves
       // they actually decoded rather than silently 404ing.

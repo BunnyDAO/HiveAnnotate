@@ -94,7 +94,9 @@ export class CaptureSession {
 
   /** Called once the picker has a rectangle: capture it, then raise the bar. */
   private async captureRegion(rect: Rect): Promise<void> {
-    this.regionOverlay.hide()
+    // Awaited: the picker must be off screen before the shutter, or it ends
+    // up inside the screenshot.
+    await this.regionOverlay.hide()
     await this.beginAndShow({ kind: 'region', ...rect }, 'region')
   }
 
@@ -194,7 +196,7 @@ export class CaptureSession {
     })
 
     ipcMain.handle('region:cancel', async () => {
-      this.regionOverlay.hide()
+      await this.regionOverlay.hide()
       console.log('[capture] region cancelled')
       return null
     })

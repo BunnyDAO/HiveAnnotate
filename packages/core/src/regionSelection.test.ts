@@ -3,10 +3,15 @@ import { GRID_KEYS, RegionSelection } from './regionSelection.ts'
 
 const SCREEN = { x: 0, y: 0, width: 1800, height: 1169 }
 
-function at(...keys: string[]): RegionSelection {
+/** Drives the picker: a letter marks, '_' descends. */
+function press(...keys: string[]): RegionSelection {
   let sel = new RegionSelection(SCREEN)
   for (const key of keys) {
-    const next = sel.subdivide(key)
+    if (key === '_') {
+      sel = sel.descend()
+      continue
+    }
+    const next = sel.mark(key)
     if (!next) throw new Error(`key ${key} was rejected`)
     sel = next
   }
@@ -19,162 +24,172 @@ describe('the grid', () => {
   })
 
   it('ignores a key that is not on the grid', () => {
-    expect(new RegionSelection(SCREEN).subdivide('k')).toBeNull()
+    expect(new RegionSelection(SCREEN).mark('k')).toBeNull()
   })
 
   it('accepts the key whatever its case', () => {
-    expect(at('Q').rect).toEqual(at('q').rect)
+    expect(press('Q').rect).toEqual(press('q').rect)
+  })
+
+  it('starts with the whole area selected, so ⏎ alone is a full capture', () => {
+    expect(new RegionSelection(SCREEN).rect).toEqual(SCREEN)
   })
 })
 
-describe('subdividing', () => {
-  it('puts q in the top-left ninth', () => {
-    expect(at('q').rect).toEqual({ x: 0, y: 0, width: 600, height: 390 })
+describe('one letter anchors', () => {
+  it('selects the top-left ninth for q', () => {
+    expect(press('q').rect).toEqual({ x: 0, y: 0, width: 600, height: 390 })
   })
 
-  it('puts s in the middle ninth', () => {
-    expect(at('s').rect).toEqual({ x: 600, y: 390, width: 600, height: 389 })
-  })
-
-  it('puts c in the bottom-right ninth, flush with the far edge', () => {
-    const { x, y, width, height } = at('c').rect
-    expect(x + width).toBe(SCREEN.width)
-    expect(y + height).toBe(SCREEN.height)
-  })
-
-  it('reaches a small rectangle in two keystrokes', () => {
-    // s is the middle ninth; d is the middle row, right column *of that* — so
-    // the y origin moves down into the sub-cell, not back to the parent's top.
-    expect(at('s', 'd').rect).toEqual({ x: 1000, y: 520, width: 200, height: 129 })
-  })
-
-  it('tracks how deep it has gone', () => {
-    expect(at('s').depth).toBe(1)
-    expect(at('s', 'd', 'q').depth).toBe(3)
+  it('selects the middle ninth for s', () => {
+    expect(press('s').rect).toEqual({ x: 600, y: 390, width: 600, height: 389 })
   })
 })
 
-describe('no cumulative drift', () => {
-  // Cell edges are computed from the parent rectangle each time rather than by
-  // repeatedly flooring a cell size. Without that, four levels of subdivision
-  // drift by several pixels and the selection stops matching what is drawn.
-  it.each([1, 2, 3, 4])('the nine cells tile the parent exactly at depth %i', (depth) => {
-    let parent = new RegionSelection(SCREEN)
-    for (let i = 1; i < depth; i++) parent = parent.subdivide('s')!
-
-    const cells = GRID_KEYS.map((k) => parent.subdivide(k)!.rect)
-    const area = cells.reduce((sum, c) => sum + c.width * c.height, 0)
-
-    expect(area).toBe(parent.rect.width * parent.rect.height)
+describe('later letters extend the box', () => {
+  it('q then e is exactly the top row', () => {
+    expect(press('q', 'e').rect).toEqual({ x: 0, y: 0, width: 1800, height: 390 })
   })
 
-  it('leaves no gap or overlap between neighbouring cells', () => {
-    const parent = new RegionSelection(SCREEN)
-    const q = parent.subdivide('q')!.rect
-    const w = parent.subdivide('w')!.rect
-    const a = parent.subdivide('a')!.rect
-
-    expect(q.x + q.width).toBe(w.x)
-    expect(q.y + q.height).toBe(a.y)
+  it('q then c is exactly the whole area', () => {
+    expect(press('q', 'c').rect).toEqual(SCREEN)
   })
 
-  it('stays inside the screen however deep it goes', () => {
-    const deep = at('c', 'c', 'c', 'c').rect
-    expect(deep.x).toBeGreaterThanOrEqual(SCREEN.x)
-    expect(deep.y).toBeGreaterThanOrEqual(SCREEN.y)
-    expect(deep.x + deep.width).toBeLessThanOrEqual(SCREEN.x + SCREEN.width)
-    expect(deep.y + deep.height).toBeLessThanOrEqual(SCREEN.y + SCREEN.height)
+  it('w then x is the middle column, full height', () => {
+    const rect = press('w', 'x').rect
+    expect(rect.x).toBe(600)
+    expect(rect.width).toBe(600)
+    expect(rect.y).toBe(0)
+    expect(rect.y + rect.height).toBe(SCREEN.height)
   })
 
-  it('refuses to subdivide past the point of usefulness', () => {
+  it('is order independent — the box is the same either way round', () => {
+    expect(press('q', 'c').rect).toEqual(press('c', 'q').rect)
+    expect(press('e', 'z').rect).toEqual(press('z', 'e').rect)
+  })
+
+  it('pressing the same letter twice changes nothing', () => {
+    expect(press('s', 's').rect).toEqual(press('s').rect)
+  })
+
+  it('reaches a shape subdivision could not: the left two thirds', () => {
+    // Not a ninth of anything — the case that motivated hive-v1-17.
+    const rect = press('q', 'x').rect
+    expect(rect).toEqual({ x: 0, y: 0, width: 1200, height: 1169 })
+  })
+})
+
+describe('␣ descends', () => {
+  it('makes the current box the new grid and clears the marks', () => {
+    const descended = press('s', '_')
+    expect(descended.rect).toEqual(press('s').rect)
+    expect(GRID_KEYS.some((_, i) => descended.isMarked(i))).toBe(false)
+  })
+
+  it('reaches the same rectangle two subdivisions used to', () => {
+    // Under hive-v1-12 this was `s` then `d`. One extra keystroke buys the
+    // ability to select wide shapes at all.
+    expect(press('s', '_', 'd').rect).toEqual({ x: 1000, y: 520, width: 200, height: 129 })
+  })
+
+  it('does nothing when nothing is marked yet', () => {
+    const top = new RegionSelection(SCREEN)
+    expect(top.descend().rect).toEqual(SCREEN)
+  })
+
+  it('refuses to descend past the point of usefulness', () => {
     let sel = new RegionSelection(SCREEN)
-    for (let i = 0; i < 12; i++) {
-      const next = sel.subdivide('q')
-      if (!next) break
-      sel = next
-    }
-    // A one-pixel target is not a selection anyone meant to make.
+    for (let i = 0; i < 12; i++) sel = sel.mark('q')!.descend()
     expect(sel.rect.width).toBeGreaterThan(1)
     expect(sel.rect.height).toBeGreaterThan(1)
   })
 })
 
-describe('⌫ — back one level', () => {
-  it('returns to the parent rectangle', () => {
-    expect(at('s', 'd').back().rect).toEqual(at('s').rect)
+describe('⌫ undoes one key at a time', () => {
+  it('undoes a mark', () => {
+    expect(press('q', 'e').back().rect).toEqual(press('q').rect)
   })
 
-  it('does nothing at the top level rather than throwing', () => {
-    const top = new RegionSelection(SCREEN)
-    expect(top.back().rect).toEqual(SCREEN)
+  it('undoes a descend', () => {
+    expect(press('s', '_').back().rect).toEqual(press('s').rect)
   })
 
-  it('undoes exactly one level at a time', () => {
-    expect(at('s', 'd', 'q').back().back().rect).toEqual(at('s').rect)
+  it('walks back through marks and descents in the order they were made', () => {
+    const sel = press('s', '_', 'd')
+    expect(sel.back().rect).toEqual(press('s', '_').rect)
+    expect(sel.back().back().rect).toEqual(press('s').rect)
+    expect(sel.back().back().back().rect).toEqual(SCREEN)
+  })
+
+  it('does nothing at the very start rather than throwing', () => {
+    expect(new RegionSelection(SCREEN).back().rect).toEqual(SCREEN)
   })
 })
 
-describe('␣ — grow', () => {
-  // Distinct from ⌫: growing keeps the selection where it is and enlarges it by
-  // one cell on every side. ⌫ jumps back to a rectangle nine times the size.
-  it('enlarges around the current rectangle without changing depth', () => {
-    const sel = at('s', 's')
-    const grown = sel.grow()
+describe('no cumulative drift', () => {
+  it.each([0, 1, 2, 3])('the nine cells tile the grid exactly after %i descents', (descents) => {
+    let sel = new RegionSelection(SCREEN)
+    for (let i = 0; i < descents; i++) sel = sel.mark('s')!.descend()
 
-    expect(grown.depth).toBe(sel.depth)
-    expect(grown.rect.width).toBeGreaterThan(sel.rect.width)
-    expect(grown.rect.x).toBeLessThan(sel.rect.x)
+    const area = sel.cells().reduce((sum, c) => sum + c.width * c.height, 0)
+    expect(area).toBe(sel.rect.width * sel.rect.height)
   })
 
-  it('clamps at the screen edge instead of running off it', () => {
-    let sel = at('q')
-    for (let i = 0; i < 20; i++) sel = sel.grow()
+  it('leaves no gap or overlap between neighbouring cells', () => {
+    const cells = new RegionSelection(SCREEN).cells()
+    expect(cells[0]!.x + cells[0]!.width).toBe(cells[1]!.x)
+    expect(cells[0]!.y + cells[0]!.height).toBe(cells[3]!.y)
+  })
 
-    expect(sel.rect.x).toBe(SCREEN.x)
-    expect(sel.rect.y).toBe(SCREEN.y)
-    expect(sel.rect.width).toBeLessThanOrEqual(SCREEN.width)
+  it('stays inside the screen however deep it goes', () => {
+    let sel = new RegionSelection(SCREEN)
+    for (let i = 0; i < 4; i++) sel = sel.mark('c')!.descend()
+    const r = sel.rect
+    expect(r.x).toBeGreaterThanOrEqual(SCREEN.x)
+    expect(r.x + r.width).toBeLessThanOrEqual(SCREEN.x + SCREEN.width)
+    expect(r.y + r.height).toBeLessThanOrEqual(SCREEN.y + SCREEN.height)
   })
 })
 
 describe('⇧ + arrows — nudge an edge', () => {
-  it.each([
-    ['right', { width: 8 }],
-    ['down', { height: 8 }],
-  ])('extends the %s edge', (direction, delta) => {
-    const sel = at('s')
-    const nudged = sel.nudge(direction as 'right' | 'down')
-
-    if ('width' in delta) expect(nudged.rect.width).toBe(sel.rect.width + delta.width)
-    if ('height' in delta) expect(nudged.rect.height).toBe(sel.rect.height + delta.height!)
+  it('extends the right edge', () => {
+    const sel = press('s')
+    expect(sel.nudge('right').rect.width).toBe(sel.rect.width + 8)
   })
 
-  it('extends left and up by moving the origin, not the far edge', () => {
-    const sel = at('s')
+  it('extends left by moving the origin, not the far edge', () => {
+    const sel = press('s')
     const nudged = sel.nudge('left')
-
     expect(nudged.rect.x).toBe(sel.rect.x - 8)
     expect(nudged.rect.x + nudged.rect.width).toBe(sel.rect.x + sel.rect.width)
   })
 
   it('clamps at the screen edge', () => {
-    let sel = at('q')
+    let sel = press('q')
     for (let i = 0; i < 200; i++) sel = sel.nudge('left')
     expect(sel.rect.x).toBe(SCREEN.x)
+  })
+
+  it('is undone by ⌫ like any other key', () => {
+    const sel = press('s')
+    expect(sel.nudge('right').back().rect).toEqual(sel.rect)
+  })
+
+  it('is superseded by the next letter, which redefines the box', () => {
+    const nudged = press('q').nudge('right').nudge('right')
+    expect(nudged.mark('e')!.rect).toEqual(press('q', 'e').rect)
   })
 })
 
 describe('the rectangle handed to screencapture', () => {
   it('is integral, because -R takes no fractions', () => {
-    const rect = at('s', 'd', 'x').rect
+    const rect = press('s', '_', 'd', 'x').rect
     for (const value of Object.values(rect)) expect(Number.isInteger(value)).toBe(true)
   })
 
   it('works on a display that does not start at the origin', () => {
-    // A secondary display sits at a non-zero offset in the global coordinate
-    // space, which is the space -R expects.
     const secondary = { x: 1800, y: -200, width: 1440, height: 900 }
-    const sel = new RegionSelection(secondary).subdivide('q')!
-
+    const sel = new RegionSelection(secondary).mark('q')!
     expect(sel.rect).toEqual({ x: 1800, y: -200, width: 480, height: 300 })
   })
 })

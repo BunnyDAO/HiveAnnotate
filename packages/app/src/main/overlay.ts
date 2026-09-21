@@ -57,8 +57,8 @@ export class Overlay {
 
     // Surface renderer console output during development so a failure in the
     // bar is visible from the terminal rather than requiring devtools.
-    this.window.webContents.on('console-message', (_e, _level, message) => {
-      console.log(`[renderer] ${message}`)
+    this.window.webContents.on('console-message', (event) => {
+      console.log(`[renderer] ${(event as unknown as { message: string }).message}`)
     })
 
     this.window.setAlwaysOnTop(true, 'screen-saver')

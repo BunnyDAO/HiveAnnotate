@@ -1,12 +1,16 @@
 /**
  * Picking an arbitrary rectangle with the keyboard.
  *
- * The screen is a 3×3 grid on the home-row block; pressing a key subdivides
- * that cell into another 3×3. Two keystrokes reach a small rectangle, and more
- * refine it. No mouse is involved at any point, which is the whole reason this
- * exists: `screencapture -i` requires a drag, so the OS picker is unusable.
+ * The grid is the home-row block. **Letters mark cells and the selection is the
+ * bounding box of everything marked** — the first press anchors, each later
+ * press extends. That makes it a corner-to-corner drag done with the keyboard:
+ * Q then C is the whole grid, Q then E is the top row.
  *
- * Pure geometry, so every level of subdivision is testable without a screen.
+ * Precision comes from descending: ␣ makes the current box the new grid, so the
+ * next letters subdivide it. S ␣ D reaches the same small rectangle that two
+ * subdivisions used to.
+ *
+ * Pure geometry, so every level is testable without a screen.
  */
 
 export interface Rect {
@@ -25,78 +29,87 @@ const NUDGE_PX = 8
 /** Below this a cell is no longer a selection anyone meant to make. */
 const MIN_SIDE = 8
 
-export class RegionSelection {
-  private readonly bounds: Rect
-  private readonly history: Rect[]
+interface State {
+  /** The area currently divided into nine. */
+  grid: Rect
+  /** Indices of cells marked at this level. */
+  marked: number[]
+  /** Set by a nudge; cleared by the next mark, which redefines the box. */
+  override: Rect | null
+}
 
-  constructor(bounds: Rect, history: Rect[] = []) {
-    this.bounds = bounds
+export class RegionSelection {
+  private readonly state: State
+  private readonly history: State[]
+
+  constructor(bounds: Rect, state?: State, history: State[] = []) {
+    this.state = state ?? { grid: bounds, marked: [], override: null }
     this.history = history
   }
 
+  /** The rectangle that would be captured right now. */
   get rect(): Rect {
-    return this.bounds
+    if (this.state.override) return this.state.override
+    if (this.state.marked.length === 0) return this.state.grid
+
+    const cells = this.state.marked.map((i) => this.cellAt(i))
+    const x = Math.min(...cells.map((c) => c.x))
+    const y = Math.min(...cells.map((c) => c.y))
+    const right = Math.max(...cells.map((c) => c.x + c.width))
+    const bottom = Math.max(...cells.map((c) => c.y + c.height))
+
+    return { x, y, width: right - x, height: bottom - y }
   }
 
-  /** How many times the screen has been subdivided to get here. */
+  /** How many times the picker has descended. */
   get depth(): number {
-    return this.history.length
+    return this.history.filter((s) => s.marked.length > 0).length
   }
 
-  /** The nine cells of the current rectangle, in key order. */
+  /** The nine cells of the current grid, in key order. */
   cells(): Rect[] {
     return GRID_KEYS.map((_, index) => this.cellAt(index))
   }
 
-  subdivide(key: string): RegionSelection | null {
+  isMarked(index: number): boolean {
+    return this.state.marked.includes(index)
+  }
+
+  /** A letter: anchor if first, otherwise extend the box to include this cell. */
+  mark(key: string): RegionSelection | null {
     const index = GRID_KEYS.indexOf(key.toLowerCase() as (typeof GRID_KEYS)[number])
     if (index === -1) return null
 
-    const cell = this.cellAt(index)
-    if (cell.width < MIN_SIDE || cell.height < MIN_SIDE) return null
+    // A fresh mark redefines the box, so any nudge that came before is spent.
+    const marked = this.state.marked.includes(index)
+      ? this.state.marked
+      : [...this.state.marked, index]
 
-    return new RegionSelection(cell, [...this.history, this.bounds])
+    return this.push({ grid: this.state.grid, marked, override: null })
   }
 
-  /** ⌫ — undo the last subdivision. */
+  /** ␣ — the current box becomes the new grid; the marks clear. */
+  descend(): RegionSelection {
+    if (this.state.marked.length === 0 && !this.state.override) return this
+    const next = this.rect
+    if (next.width < MIN_SIDE * COLUMNS || next.height < MIN_SIDE * ROWS) return this
+    return this.push({ grid: next, marked: [], override: null })
+  }
+
+  /** ⌫ — undo exactly one key, whether it was a mark or a descend. */
   back(): RegionSelection {
-    const parent = this.history[this.history.length - 1]
-    if (!parent) return this
-    return new RegionSelection(parent, this.history.slice(0, -1))
+    const previous = this.history[this.history.length - 1]
+    if (!previous) return this
+    return new RegionSelection(previous.grid, previous, this.history.slice(0, -1))
   }
 
-  /**
-   * ␣ — enlarge around the current rectangle, keeping its depth.
-   *
-   * Distinct from ⌫, which jumps back to a rectangle nine times the size. This
-   * is the fine adjustment: the selection is nearly right and wants a little
-   * more room.
-   */
-  grow(): RegionSelection {
-    const outer = this.outerBounds()
-    const dx = Math.max(1, Math.round(this.bounds.width / COLUMNS))
-    const dy = Math.max(1, Math.round(this.bounds.height / ROWS))
-
-    return this.withRect(
-      clampTo(
-        {
-          x: this.bounds.x - dx,
-          y: this.bounds.y - dy,
-          width: this.bounds.width + dx * 2,
-          height: this.bounds.height + dy * 2,
-        },
-        outer,
-      ),
-    )
-  }
-
-  /** ⇧ + arrow — extend one edge outwards. */
+  /** ⇧ + arrow — extend one edge of the resulting box outwards. */
   nudge(direction: 'left' | 'right' | 'up' | 'down'): RegionSelection {
     const outer = this.outerBounds()
-    const r = { ...this.bounds }
+    const r = { ...this.rect }
 
-    // Left and up move the origin and keep the far edge where it is, so the
-    // rectangle grows in the direction pressed rather than sliding.
+    // Left and up move the origin and keep the far edge, so the box grows in
+    // the direction pressed rather than sliding.
     if (direction === 'left') {
       r.x -= NUDGE_PX
       r.width += NUDGE_PX
@@ -109,31 +122,32 @@ export class RegionSelection {
       r.height += NUDGE_PX
     }
 
-    return this.withRect(clampTo(r, outer))
+    return this.push({ ...this.state, override: clampTo(r, outer) })
   }
 
-  private withRect(rect: Rect): RegionSelection {
-    return new RegionSelection(rect, this.history)
+  private push(state: State): RegionSelection {
+    return new RegionSelection(state.grid, state, [...this.history, this.state])
   }
 
   /** The full screen this selection started from. */
   private outerBounds(): Rect {
-    return this.history[0] ?? this.bounds
+    return this.history[0]?.grid ?? this.state.grid
   }
 
   /**
-   * Cell edges are derived from the parent rectangle every time rather than by
-   * repeatedly flooring a cell size. Flooring drifts: four levels in, the
-   * selection no longer matches what was drawn on screen.
+   * Cell edges are derived from the grid every time rather than by repeatedly
+   * flooring a cell size. Flooring drifts: several levels in, the selection
+   * stops matching what is drawn.
    */
   private cellAt(index: number): Rect {
+    const { grid } = this.state
     const column = index % COLUMNS
     const row = Math.floor(index / COLUMNS)
 
-    const x0 = this.bounds.x + Math.round((column * this.bounds.width) / COLUMNS)
-    const x1 = this.bounds.x + Math.round(((column + 1) * this.bounds.width) / COLUMNS)
-    const y0 = this.bounds.y + Math.round((row * this.bounds.height) / ROWS)
-    const y1 = this.bounds.y + Math.round(((row + 1) * this.bounds.height) / ROWS)
+    const x0 = grid.x + Math.round((column * grid.width) / COLUMNS)
+    const x1 = grid.x + Math.round(((column + 1) * grid.width) / COLUMNS)
+    const y0 = grid.y + Math.round((row * grid.height) / ROWS)
+    const y1 = grid.y + Math.round(((row + 1) * grid.height) / ROWS)
 
     return { x: x0, y: y0, width: x1 - x0, height: y1 - y0 }
   }
