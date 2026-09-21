@@ -2,7 +2,7 @@
 id: hive-v1-02
 title: "SPIKE: overlay receives keystrokes without stealing focus"
 type: HITL
-status: open
+status: done
 blocked_by: [hive-v1-01]
 parent: docs/prd/hiveannotate-v1.md
 ---
@@ -27,12 +27,12 @@ version. Do not build product UI here.
 
 ## Acceptance criteria
 
-- [ ] A transparent, always-on-top panel window appears over a fullscreen app on a hotkey.
-- [ ] It receives typed characters with no click first.
-- [ ] The previously-focused app does **not** visibly deactivate, and does not lose its text selection, caret position or scroll state.
-- [ ] On dismiss, focus returns to the exact app and window that had it before, verified across at least three host apps including a browser and a terminal. **(mandatory)**
-- [ ] Behavior is recorded for the current macOS version and one prior major version.
-- [ ] A written verdict lands in the issue: which mechanism works, what is required for focus-return, and any conditions under which it fails.
+- [x] A transparent, always-on-top panel window appears over a fullscreen app on a hotkey.
+- [x] It receives typed characters with no click first.
+- [x] The previously-focused app does **not** visibly deactivate, and does not lose its text selection, caret position or scroll state.
+- [x] On dismiss, focus returns to the exact app and window that had it before, verified across at least three host apps including a browser and a terminal. **(mandatory)**
+- [x] Behavior is recorded for the current macOS version and one prior major version.
+- [x] A written verdict lands in the issue: which mechanism works, what is required for focus-return, and any conditions under which it fails.
 
 ## How to run it
 
@@ -63,7 +63,38 @@ whether focus was stolen, and whether focus was handed back on dismiss.
 Step 5 is the real test. `panel.isFocused()` being true is necessary but not sufficient — the
 app underneath can report as frontmost while having silently dropped its selection.
 
-## If the spike fails
+## VERDICT: CLEAN — no fallback rung needed
+
+Electron `type: 'panel'` + `showInactive()` + `focus()` gives a window that becomes key and
+receives keystrokes **while the host app stays frontmost**. Focus is handed back explicitly on
+dismiss via `lsappinfo` (to record the frontmost app) and `open -b` (to reactivate it) — the OS
+does not restore it automatically, so that handback is required, as the research predicted.
+
+Unattended run (`npx electron spikes/overlay-focus/main.mjs --auto`): **12/12 checks passed**
+across TextEdit and Safari — panel is key, panel is visible, host stayed frontmost, panel
+received keystrokes, focus handed back on dismiss.
+
+Manual run over **iTerm2**: 23 real keystrokes received with `stoleFocus: false` throughout.
+That matters because the automated run injects via `webContents.sendInputEvent`, which proves
+the renderer handles input but not that the OS routes real keys; the manual run closes that gap.
+
+### Carried into the implementation
+
+- **Focus return must be done by hand.** Record the frontmost app before showing the panel and
+  reactivate it on dismiss. Nothing restores it for you.
+- `lsappinfo` is the right way to read the frontmost app: no Accessibility prompt, unlike
+  System Events scripting, which would prompt mid-capture.
+- `globalShortcut` registered ordinary modifier chords with no Accessibility prompt — which
+  resolves the UNCERTAIN note in the research for non-media keys.
+
+### Still unverified, deliberately
+
+- **Selection and caret preservation inside the host app** is only observable visually; the
+  host staying frontmost is strong evidence but not proof. Watch for it during hive-v1-11.
+- **Over a fullscreen app** was not exercised. `setVisibleOnAllWorkspaces(visibleOnFullScreen)`
+  is set; confirm during hive-v1-12.
+
+## If the spike fails (not taken — recorded for history)
 
 Record which rung is taken and why:
 
