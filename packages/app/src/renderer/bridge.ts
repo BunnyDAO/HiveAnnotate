@@ -77,6 +77,7 @@ export interface CatalogueBridge {
   closeBundle: (id: string) => Promise<unknown>
   handoff: (id: string, adapterId: string) => Promise<unknown>
   adapters: () => Promise<{ id: string; label: string }[]>
+  onRefresh?: (fn: () => void) => void
 }
 
 export interface HiveBridge {

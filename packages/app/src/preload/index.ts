@@ -48,5 +48,6 @@ contextBridge.exposeInMainWorld('hive', {
     handoff: (id: string, adapterId: string) =>
       ipcRenderer.invoke('catalogue:handoff', { id, adapterId }),
     adapters: () => ipcRenderer.invoke('catalogue:adapters'),
+    onRefresh: (fn: () => void) => ipcRenderer.on('catalogue:refresh', () => fn()),
   },
 })

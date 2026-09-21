@@ -34,7 +34,7 @@ export {
   registerChords,
   unavailableChords,
 } from './hotkeys.ts'
-export type { CaptureIntent, Chord, ChordRegistration } from './hotkeys.ts'
+export type { CaptureIntent, Chord, ChordAction, ChordRegistration } from './hotkeys.ts'
 export { SecureInputWatcher } from './macos/secureInput.ts'
 export type { SecureInputState, SecureInputWatcherOptions } from './macos/secureInput.ts'
 export { MacCaptureBackend } from './macos/captureBackend.ts'

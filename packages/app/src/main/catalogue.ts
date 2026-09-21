@@ -1,4 +1,4 @@
-import { BrowserWindow, ipcMain, protocol, net } from 'electron'
+import { app, BrowserWindow, ipcMain, protocol, net } from 'electron'
 import { join, normalize, sep } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { fileURLToPath } from 'node:url'
@@ -52,10 +52,25 @@ export class Catalogue {
     this.wireIpc()
   }
 
+  /** ⌥4 — open the Catalogue, or put it away if it is already in front. */
+  toggle(): void {
+    if (this.window && !this.window.isDestroyed() && this.window.isVisible() && this.window.isFocused()) {
+      this.window.hide()
+      return
+    }
+    this.open()
+  }
+
   open(): void {
+    // HiveAnnotate is a menu-bar app with no dock tile, so showing a window is
+    // not enough to bring it in front of whatever the user is working in — the
+    // app has to take focus explicitly, or the Catalogue opens behind.
+    app.focus({ steal: true })
+
     if (this.window && !this.window.isDestroyed()) {
       this.window.show()
       this.window.focus()
+      this.window.webContents.send('catalogue:refresh')
       return
     }
 

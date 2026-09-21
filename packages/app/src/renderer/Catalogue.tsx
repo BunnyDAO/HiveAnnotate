@@ -31,6 +31,8 @@ export function Catalogue(): React.JSX.Element {
   const [bundle, setBundle] = useState<BundleView | null>(null)
   const [adapters, setAdapters] = useState<{ id: string; label: string }[]>([])
   const [busy, setBusy] = useState<string | null>(null)
+  /** Index into bundle.captures of the screenshot open full size, if any. */
+  const [viewing, setViewing] = useState<number | null>(null)
 
   const refresh = useCallback(async (keep?: string) => {
     const list = (await window.hive?.catalogue?.list()) ?? []
@@ -47,14 +49,35 @@ export function Catalogue(): React.JSX.Element {
     // this window was open, shows up without a restart.
     const onFocus = () => void refresh()
     window.addEventListener('focus', onFocus)
+    window.hive?.catalogue?.onRefresh?.(() => void refresh())
     return () => window.removeEventListener('focus', onFocus)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   async function select(id: string): Promise<void> {
+    setViewing(null)
     setSelected(id)
     setBundle((await window.hive?.catalogue?.get(id)) ?? null)
   }
+
+  useEffect(() => {
+    if (viewing === null || !bundle) return
+    const count = bundle.captures.length
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        e.preventDefault()
+        setViewing(null)
+      } else if (e.key === 'ArrowRight') {
+        e.preventDefault()
+        setViewing((i) => (i === null ? i : (i + 1) % count))
+      } else if (e.key === 'ArrowLeft') {
+        e.preventDefault()
+        setViewing((i) => (i === null ? i : (i - 1 + count) % count))
+      }
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [viewing, bundle])
 
   async function act(label: string, fn: () => Promise<unknown>): Promise<void> {
     setBusy(label)
@@ -145,11 +168,25 @@ export function Catalogue(): React.JSX.Element {
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
               {bundle.captures.map((c) => (
                 <div key={c.index} style={{ display: 'flex', gap: 16, alignItems: 'flex-start', background: '#1A1711', border: `1px solid ${line}`, borderRadius: 9, padding: 12 }}>
-                  <img
-                    src={c.src}
-                    alt={c.note || `capture ${c.file}`}
-                    style={{ width: 176, height: 112, flexShrink: 0, objectFit: 'cover', objectPosition: 'top left', borderRadius: 6, background: '#221E18', border: '1px solid #2F2A22' }}
-                  />
+                  <button
+                    type="button"
+                    title="Double-click to view full size"
+                    aria-label={`View ${c.file} full size`}
+                    onDoubleClick={() => setViewing(bundle.captures.indexOf(c))}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault()
+                        setViewing(bundle.captures.indexOf(c))
+                      }
+                    }}
+                    style={{ padding: 0, border: 'none', background: 'none', cursor: 'zoom-in', flexShrink: 0, borderRadius: 6 }}
+                  >
+                    <img
+                      src={c.src}
+                      alt={c.note || `capture ${c.file}`}
+                      style={{ display: 'block', width: 176, height: 112, objectFit: 'cover', objectPosition: 'top left', borderRadius: 6, background: '#221E18', border: '1px solid #2F2A22' }}
+                    />
+                  </button>
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 9, marginBottom: 7 }}>
                       <span style={{ fontFamily: mono, fontSize: 10, color: honey }}>{c.file}</span>
@@ -196,6 +233,45 @@ export function Catalogue(): React.JSX.Element {
           </>
         )}
       </main>
+
+      {viewing !== null && bundle && bundle.captures[viewing] && (() => {
+        const c = bundle.captures[viewing]!
+        return (
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-label={`${c.file} full size`}
+            onClick={() => setViewing(null)}
+            style={{
+              position: 'fixed', inset: 0, zIndex: 10, background: 'rgba(6,5,3,.92)',
+              display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+              gap: 14, padding: '44px 32px 24px', boxSizing: 'border-box',
+            }}
+          >
+            <button
+              type="button"
+              aria-label="Close"
+              onClick={() => setViewing(null)}
+              style={{ position: 'absolute', top: 38, right: 24, width: 34, height: 34, borderRadius: 8, border: `1px solid #3A342B`, background: '#1E1B16', color: ink, fontSize: 16, cursor: 'pointer' }}
+            >
+              ✕
+            </button>
+            <img
+              src={c.src}
+              alt={c.note || c.file}
+              onClick={(e) => e.stopPropagation()}
+              style={{ maxWidth: '100%', maxHeight: 'calc(100vh - 170px)', objectFit: 'contain', borderRadius: 6, boxShadow: '0 20px 60px rgba(0,0,0,.6)', cursor: 'default' }}
+            />
+            <div onClick={(e) => e.stopPropagation()} style={{ maxWidth: 900, textAlign: 'center' }}>
+              <div style={{ fontFamily: mono, fontSize: 11, color: dim, marginBottom: 6 }}>
+                {viewing + 1} / {bundle.captures.length} · {c.file} · {c.kind}{c.app ? ` · ${c.app}` : ''} · {c.width}×{c.height}
+              </div>
+              {c.note && <div style={{ fontSize: 14, lineHeight: 1.55, color: '#D8D0BE' }}>{c.note}</div>}
+              <div style={{ fontFamily: mono, fontSize: 10, color: dim, marginTop: 8 }}>← → to step through · esc to close</div>
+            </div>
+          </div>
+        )
+      })()}
 
       <aside style={{ width: 300, flexShrink: 0, borderLeft: `1px solid ${line}`, background: panel, padding: '38px 20px', display: 'flex', flexDirection: 'column', gap: 12 }}>
         <div style={{ fontFamily: display, fontWeight: 700, fontSize: 15, marginBottom: 2 }}>Hand off</div>

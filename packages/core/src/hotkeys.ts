@@ -1,25 +1,35 @@
 /**
  * The chords, in one place.
  *
- * Window and region capture are **co-primary**: the locked intent is "any part
- * of the desktop", so neither is a fallback and neither gets the worse chord.
+ * The region picker has the easiest chord. It started on ⌥3, but in real use
+ * it was the one reached for most — windows tend to be maximised, which makes
+ * a window capture nearly a full-screen one, so picking the part you mean is
+ * what you actually want. Changed on the user's request after first use.
+ *
+ * The number row is used deliberately: ⌥-digit produces rarely-typed symbols
+ * (¡ ™ £ ¢), whereas ⌥-letter produces characters people do type, and a
+ * global chord swallows them everywhere.
  */
 
 import type { CaptureTarget } from './macos/captureBackend.ts'
 
 export type CaptureIntent = CaptureTarget['kind']
 
+/** Everything a global chord can do: take a capture, or open the Catalogue. */
+export type ChordAction = CaptureIntent | 'catalogue'
+
 export interface Chord {
-  intent: CaptureIntent
+  intent: ChordAction
   /** Electron accelerator syntax. */
   accelerator: string
   label: string
 }
 
 export const DEFAULT_CHORDS: readonly Chord[] = [
-  { intent: 'window', accelerator: 'Alt+1', label: 'Capture the focused window' },
+  { intent: 'region', accelerator: 'Alt+1', label: 'Pick a region with the keyboard' },
   { intent: 'screen', accelerator: 'Alt+2', label: 'Capture the whole screen' },
-  { intent: 'region', accelerator: 'Alt+3', label: 'Pick a region with the keyboard' },
+  { intent: 'window', accelerator: 'Alt+3', label: 'Capture the focused window' },
+  { intent: 'catalogue', accelerator: 'Alt+4', label: 'Open or close the Catalogue' },
 ] as const
 
 export interface ChordRegistration {
@@ -37,7 +47,7 @@ export interface ChordRegistration {
 export function registerChords(
   chords: readonly Chord[],
   register: (accelerator: string, handler: () => void) => boolean,
-  onIntent: (intent: CaptureIntent) => void,
+  onIntent: (intent: ChordAction) => void,
 ): ChordRegistration[] {
   return chords.map((chord) => ({
     chord,

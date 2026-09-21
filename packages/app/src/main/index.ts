@@ -2,7 +2,7 @@ import { app, Tray, Menu, BrowserWindow, nativeImage, protocol } from 'electron'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { APP_NAME, BUNDLE_ID } from '@hiveannotate/core'
-import type { CaptureIntent } from '@hiveannotate/core'
+import type { ChordAction } from '@hiveannotate/core'
 import { defaultBundleRoot } from '@hiveannotate/core'
 import { startHotkeys } from './hotkeys.ts'
 import { CaptureSession } from './captureSession.ts'
@@ -115,7 +115,11 @@ function buildTray(): void {
 
 let session: CaptureSession | null = null
 
-function onCaptureIntent(intent: CaptureIntent): void {
+function onCaptureIntent(intent: ChordAction): void {
+  if (intent === 'catalogue') {
+    catalogue?.toggle()
+    return
+  }
   void session?.capture(intent)
 }
 
@@ -347,6 +351,56 @@ if (process.argv.includes('--self-test')) {
         'utf8',
       )
       check('catalogue: bundle.md was regenerated', md.includes('edited from the catalogue'), '')
+
+      // Double-click a thumbnail: the full-size viewer opens on that capture.
+      const viewer = await cat.webContents.executeJavaScript(`(async () => {
+        const wait = (ms) => new Promise(r => setTimeout(r, ms))
+        const thumb = document.querySelector('button[aria-label$="full size"]')
+        if (!thumb) return { opened: false }
+        thumb.dispatchEvent(new MouseEvent('dblclick', { bubbles: true }))
+        // Wait for the image to actually decode, not a fixed delay: an <img>
+        // with no explicit size is 0px wide until it loads, so measuring
+        // early says nothing about whether the viewer works.
+        let dialog = null, img = null
+        for (let i = 0; i < 40; i++) {
+          dialog = document.querySelector('[role="dialog"]')
+          img = dialog?.querySelector('img')
+          if (img && img.complete && img.naturalWidth > 0) break
+          await wait(100)
+        }
+        await wait(100)
+        // Measure NOW, while the viewer is open. Measured after Esc, the image
+        // is detached from the page and always reads 0px — which is what the
+        // first version of this check did.
+        const fullWidth = img ? img.getBoundingClientRect().width : 0
+        const decoded = img ? img.naturalWidth : 0
+        const loadState = img ? (img.complete ? 'complete' : 'loading') : 'no img'
+        const before = dialog?.innerText.match(/(\\d+) \\/ (\\d+)/)?.[0] ?? ''
+        window.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight' }))
+        await wait(300)
+        const after = document.querySelector('[role="dialog"]')?.innerText.match(/(\\d+) \\/ (\\d+)/)?.[0] ?? ''
+        window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }))
+        await wait(300)
+        return {
+          opened: Boolean(dialog),
+          fullWidth, decoded, loadState,
+          before, after,
+          closed: !document.querySelector('[role="dialog"]'),
+        }
+      })()`)
+      check('viewer: double-click opens a screenshot full size', viewer.opened && viewer.decoded > 0 && viewer.fullWidth > 176,
+        `shown ${Math.round(viewer.fullWidth)}px wide vs a 176px thumbnail (natural ${viewer.decoded}px, ${viewer.loadState})`)
+      check('viewer: arrow keys step through captures', viewer.before !== '' && viewer.after !== '' && viewer.before !== viewer.after,
+        `${viewer.before} → ${viewer.after}`)
+      check('viewer: Esc closes it', viewer.closed, '')
+    }
+
+    // The chord table: region on the easiest chord, and a chord for the Catalogue.
+    {
+      const regs = hotkeys?.registrations ?? []
+      const find = (intent: string) => regs.find((r) => r.chord.intent === intent)
+      check('chords: region picker is on Option+1', find('region')?.chord.accelerator === 'Alt+1' && Boolean(find('region')?.registered), '')
+      check('chords: Option+4 opens the Catalogue', find('catalogue')?.chord.accelerator === 'Alt+4' && Boolean(find('catalogue')?.registered), '')
     }
 
     const failed = results.filter((r) => r.startsWith('FAIL'))

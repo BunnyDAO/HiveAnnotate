@@ -7,7 +7,7 @@ import {
   registerChords,
   unavailableChords,
 } from '@hiveannotate/core'
-import type { CaptureIntent, ChordRegistration, SecureInputState } from '@hiveannotate/core'
+import type { ChordAction, ChordRegistration, SecureInputState } from '@hiveannotate/core'
 import { helperPath } from './helper.ts'
 
 const run = promisify(execFile)
@@ -26,7 +26,7 @@ export interface HotkeyService {
  * calls. The spike (hive-v1-02) established that ordinary modifier chords
  * register with no Accessibility prompt.
  */
-export function startHotkeys(onIntent: (intent: CaptureIntent) => void): HotkeyService {
+export function startHotkeys(onIntent: (intent: ChordAction) => void): HotkeyService {
   const registrations = registerChords(
     DEFAULT_CHORDS,
     (accelerator, handler) => globalShortcut.register(accelerator, handler) ?? false,
