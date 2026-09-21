@@ -449,6 +449,36 @@ if (process.argv.includes('--self-test')) {
       )
     }
 
+    // --- filing chips: start a new bundle right from the bar ---------------
+    {
+      const chipStore = new BundleStore(defaultBundleRoot())
+      const before = await chipStore.listBundles()
+      // The Catalogue is still open from the step above, so "the visible
+      // window" is ambiguous here; ask for the capture bar by its surface.
+      await session?.capture('screen')
+      await wait(1500)
+      const chipBar = BrowserWindow.getAllWindows().find(
+        (w) => w.isVisible() && w.webContents.getURL().includes('#capture'),
+      )
+      if (chipBar) {
+        const text: string = await chipBar.webContents.executeJavaScript('document.body.innerText')
+        check('chips: the bar offers a new bundle beside the default', /New bundle/.test(text), '')
+        type(chipBar, [...'a separate problem'])
+        await wait(300)
+        type(chipBar, ['Tab']) // default -> "+ New bundle"
+        await wait(300)
+        type(chipBar, ['Return'])
+        await wait(1800)
+      }
+      const after = await chipStore.listBundles()
+      const created = after.find((b) => !before.some((x) => x.id === b.id))
+      check(
+        'chips: Tab to "New bundle" then Enter starts a new bundle named from the note',
+        after.length === before.length + 1 && created?.intent === 'a separate problem',
+        created ? `${created.id}` : `bundles ${before.length} -> ${after.length}`,
+      )
+    }
+
     const failed = results.filter((r) => r.startsWith('FAIL'))
     console.log(`\nSELF-TEST: ${results.length - failed.length}/${results.length} passed`)
     console.log(failed.length ? 'SELF-TEST FAIL' : 'SELF-TEST PASS')
@@ -591,6 +621,14 @@ if (snapIndex !== -1) {
     const shoot = pf(ef)
     const wait = (ms: number) => new Promise((r) => setTimeout(r, ms))
     await wait(1200)
+    if (surface === 'catalogue') {
+      catalogue?.open()
+      await wait(2500)
+      await shoot('screencapture', ['-x', '/tmp/hive-snap-catalogue.png'])
+      console.log('SNAP: /tmp/hive-snap-catalogue.png')
+      app.quit()
+      return
+    }
     if (surface === 'fail') {
       const { CaptureSession: Session } = await import('./captureSession.ts')
       Session.forceFailure = 'no-permission'

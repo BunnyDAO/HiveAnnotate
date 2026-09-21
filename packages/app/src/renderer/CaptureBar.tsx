@@ -1,14 +1,19 @@
+import { theme, fonts, accentAlpha } from './theme.ts'
 import { useEffect, useRef, useState } from 'react'
 
 import type { FailurePayload, PendingView } from './bridge.ts'
+import { filingChoices } from '@hiveannotate/core/filingChoices'
+import type { FilingTarget } from '@hiveannotate/core/filingChoices'
 
-const ground = '#1E1B16'
-const border = '#3A342B'
-const honey = '#E8A33D'
-const ink = '#F5F1E8'
-const muted = '#A89F8D'
-const dim = '#6E6558'
-const mono = "'IBM Plex Mono', ui-monospace, monospace"
+const ground = theme.surface
+const border = theme.borderStrong
+const accent = theme.accent
+const ink = theme.text
+const muted = theme.muted
+const dim = theme.dim
+/** A selected filing chip: a quiet tint of the accent rather than a solid fill. */
+const CHIP_ON_BG = accentAlpha(0.12)
+const mono = fonts.mono
 
 function Key({ children }: { children: React.ReactNode }): React.JSX.Element {
   return (
@@ -21,11 +26,11 @@ function Key({ children }: { children: React.ReactNode }): React.JSX.Element {
         height: 22,
         padding: '0 6px',
         borderRadius: 5,
-        background: '#2A261F',
+        background: theme.border,
         border: `1px solid ${border}`,
         fontFamily: mono,
         fontSize: 11,
-        color: '#D8D0BE',
+        color: theme.textBody,
       }}
     >
       {children}
@@ -36,7 +41,8 @@ function Key({ children }: { children: React.ReactNode }): React.JSX.Element {
 export function CaptureBar(): React.JSX.Element {
   const [view, setView] = useState<PendingView | null>(null)
   const [note, setNote] = useState('')
-  const [targetIndex, setTargetIndex] = useState(0)
+  /** Index into `choices` of the chip that Enter will file into. */
+  const [selected, setSelected] = useState(0)
   const [error, setError] = useState<string | null>(null)
   const [failure, setFailure] = useState<FailurePayload | null>(null)
   const field = useRef<HTMLInputElement>(null)
@@ -50,7 +56,7 @@ export function CaptureBar(): React.JSX.Element {
       // sentence the user had already typed.
       if (!incoming.isRetry) {
         setNote('')
-        setTargetIndex(0)
+        setSelected(0)
       }
       // Focused without a click: the whole premise is that you type immediately.
       requestAnimationFrame(() => field.current?.focus())
@@ -64,28 +70,22 @@ export function CaptureBar(): React.JSX.Element {
     })
   }, [])
 
-  // [default] + every open bundle, cycled with ⇥.
+  // Every option is a visible chip: the default first, a new bundle right
+  // beside it, then the other open bundles.
   const choices = view
-    ? [
-        view.destination.kind === 'append'
-          ? {
-              label: view.bundles.find((b) => b.id === view.destination.bundleId)?.intent ?? 'active bundle',
-              index: 0,
-            }
-          : { label: 'a new bundle', index: 0 },
-        ...view.bundles.map((b, i) => ({ label: b.intent, index: i + 1 })),
-      ]
-    : [{ label: 'a new bundle', index: 0 }]
+    ? filingChoices(view.destination as Parameters<typeof filingChoices>[0], view.bundles)
+    : filingChoices({ kind: 'new' }, [])
+  const current = choices[Math.min(selected, choices.length - 1)] ?? choices[0]!
 
-  const current = choices[Math.min(targetIndex, choices.length - 1)] ?? choices[0]!
+  function pick(index: number): void {
+    setSelected(index)
+    // Clicking a chip must not strand the user outside the note field.
+    requestAnimationFrame(() => field.current?.focus())
+  }
 
-  async function commit(copyPointer: boolean, forceNew: boolean): Promise<void> {
+  async function commit(copyPointer: boolean, target: FilingTarget): Promise<void> {
     try {
-      await window.hive?.commit?.({
-        note,
-        targetIndex: forceNew ? -1 : targetIndex,
-        copyPointer,
-      })
+      await window.hive?.commit?.({ note, target, copyPointer })
     } catch (e) {
       setError((e as Error).message)
     }
@@ -108,12 +108,14 @@ export function CaptureBar(): React.JSX.Element {
     }
     if (e.key === 'Tab') {
       e.preventDefault()
-      setTargetIndex((i) => (i + 1) % choices.length)
+      const step = e.shiftKey ? -1 : 1
+      setSelected((i) => (i + step + choices.length) % choices.length)
       return
     }
     if (e.key === 'Enter') {
       e.preventDefault()
-      void commit(e.metaKey, e.shiftKey)
+      // Shift + Enter stays a shortcut for "new bundle", whatever is selected.
+      void commit(e.metaKey, e.shiftKey ? { kind: 'new' } : current.target)
     }
   }
 
@@ -131,15 +133,15 @@ export function CaptureBar(): React.JSX.Element {
         background: ground,
         border: `1px solid ${border}`,
         boxShadow: '0 28px 70px rgba(0,0,0,.7)',
-        fontFamily: "'IBM Plex Sans', system-ui, sans-serif",
+        fontFamily: fonts.sans,
         display: 'flex',
         flexDirection: 'column',
       }}
     >
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
         <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <span style={{ width: 7, height: 7, borderRadius: '50%', background: failure ? '#D9634F' : honey }} />
-          <span style={{ fontFamily: mono, fontSize: 11, letterSpacing: '.09em', color: failure ? '#D9634F' : honey }}>
+          <span style={{ width: 7, height: 7, borderRadius: '50%', background: failure ? theme.danger : accent }} />
+          <span style={{ fontFamily: mono, fontSize: 11, letterSpacing: '.09em', color: failure ? theme.danger : accent }}>
             {failure ? failure.explanation.title.toUpperCase() : 'CAPTURED'}
           </span>
         </span>
@@ -175,23 +177,44 @@ export function CaptureBar(): React.JSX.Element {
       {!failure && (
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, paddingBottom: 14, flexWrap: 'wrap' }}>
         <span style={{ fontSize: 12, color: dim }}>filing into</span>
-        <span
-          style={{
-            display: 'inline-flex',
-            alignItems: 'center',
-            gap: 8,
-            padding: '5px 11px',
-            borderRadius: 999,
-            background: '#2A261F',
-            border: `1px solid ${border}`,
-            maxWidth: 380,
-          }}
-        >
-          <span style={{ width: 6, height: 6, borderRadius: '50%', background: honey }} />
-          <span style={{ fontSize: 12, fontWeight: 600, color: honey, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-            {current.label}
-          </span>
-        </span>
+        {choices.map((choice, index) => {
+          const on = index === selected
+          return (
+            <button
+              key={choice.key}
+              type="button"
+              aria-pressed={on}
+              onClick={() => pick(index)}
+              title={choice.isNew ? 'Named from your note' : choice.label}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 7,
+                padding: '5px 11px',
+                borderRadius: 999,
+                maxWidth: 220,
+                cursor: 'pointer',
+                fontFamily: 'inherit',
+                background: on ? CHIP_ON_BG : 'transparent',
+                border: `1px ${choice.isNew && !on ? 'dashed' : 'solid'} ${on ? accent : border}`,
+              }}
+            >
+              {on && <span style={{ width: 6, height: 6, borderRadius: '50%', background: accent, flexShrink: 0 }} />}
+              <span
+                style={{
+                  fontSize: 12,
+                  fontWeight: on ? 600 : 400,
+                  color: on ? accent : muted,
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                {choice.isNew ? '+ New bundle' : choice.label}
+              </span>
+            </button>
+          )
+        })}
         {staleNotice && (
           <span style={{ fontSize: 12, color: muted }}>
             — the last bundle went quiet, so this starts a new one
@@ -201,12 +224,12 @@ export function CaptureBar(): React.JSX.Element {
       )}
 
       {error && (
-        <div style={{ fontSize: 12, color: '#D9634F', paddingBottom: 12 }}>{error}</div>
+        <div style={{ fontSize: 12, color: theme.danger, paddingBottom: 12 }}>{error}</div>
       )}
 
       {failure && (
         <div style={{ paddingBottom: 12 }}>
-          <div style={{ fontSize: 13, lineHeight: 1.55, color: '#D8D0BE', marginBottom: 10 }}>
+          <div style={{ fontSize: 13, lineHeight: 1.55, color: theme.textBody, marginBottom: 10 }}>
             {failure.explanation.detail}
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap' }}>
@@ -217,11 +240,11 @@ export function CaptureBar(): React.JSX.Element {
                 style={{
                   padding: '7px 13px',
                   borderRadius: 7,
-                  background: '#D9634F',
-                  border: '1px solid #D9634F',
+                  background: theme.danger,
+                  border: `1px solid ${theme.danger}`,
                   fontSize: 12,
                   fontWeight: 600,
-                  color: '#1A0D0A',
+                  color: theme.onDanger,
                   cursor: 'pointer',
                   fontFamily: 'inherit',
                 }}
@@ -252,11 +275,11 @@ export function CaptureBar(): React.JSX.Element {
       {/* In the failure state Enter means retry, so the normal hints — where
           Enter means save — would show two meanings for one key at once. */}
       {failure ? (
-        <div style={{ borderTop: `1px solid #2A261F`, paddingTop: 13, display: 'flex', alignItems: 'center', gap: 16, flexWrap: 'wrap' }}>
+        <div style={{ borderTop: `1px solid ${theme.border}`, paddingTop: 13, display: 'flex', alignItems: 'center', gap: 16, flexWrap: 'wrap' }}>
           <span style={{ display: 'inline-flex', alignItems: 'center', gap: 7 }}><Key>Esc</Key><span style={{ fontSize: 12, color: muted }}>throw away</span></span>
         </div>
       ) : (
-        <div style={{ borderTop: `1px solid #2A261F`, paddingTop: 13, display: 'flex', alignItems: 'center', gap: 16, flexWrap: 'wrap' }}>
+        <div style={{ borderTop: `1px solid ${theme.border}`, paddingTop: 13, display: 'flex', alignItems: 'center', gap: 16, flexWrap: 'wrap' }}>
         <span style={{ display: 'inline-flex', alignItems: 'center', gap: 7 }}><Key>Enter</Key><span style={{ fontSize: 12, color: muted }}>save</span></span>
         <span style={{ display: 'inline-flex', alignItems: 'center', gap: 7 }}><Key>Shift + Enter</Key><span style={{ fontSize: 12, color: muted }}>save as a new bundle</span></span>
         <span style={{ display: 'inline-flex', alignItems: 'center', gap: 7 }}><Key>Tab</Key><span style={{ fontSize: 12, color: muted }}>choose bundle</span></span>

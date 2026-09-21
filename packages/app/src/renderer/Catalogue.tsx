@@ -1,19 +1,20 @@
+import { theme, fonts, accentAlpha } from './theme.ts'
 import { useCallback, useEffect, useState } from 'react'
 import type { BundleSummary, BundleView } from './bridge.ts'
 
-const ground = '#14120E'
-const panel = '#191610'
-const line = '#2A261F'
-const honey = '#E8A33D'
-const ink = '#F5F1E8'
-const muted = '#A89F8D'
-const dim = '#6E6558'
-const mono = "'IBM Plex Mono', ui-monospace, monospace"
-const sans = "'IBM Plex Sans', system-ui, sans-serif"
-const display = "'Space Grotesk', system-ui, sans-serif"
+const ground = theme.background
+const panel = theme.surface
+const line = theme.border
+const accent = theme.accent
+const ink = theme.text
+const muted = theme.muted
+const dim = theme.dim
+const mono = fonts.mono
+const sans = fonts.sans
+const display = fonts.sans
 
 function toneFor(status: string): string {
-  return status === 'closed' ? '#8A8172' : honey
+  return status === 'closed' ? theme.dim : accent
 }
 
 function ago(iso: string): string {
@@ -90,7 +91,11 @@ export function Catalogue(): React.JSX.Element {
   }
 
   return (
-    <div style={{ display: 'flex', height: '100vh', background: ground, color: ink, fontFamily: sans }}>
+    // colorScheme dark makes macOS draw this window's scrollbars and dropdowns
+    // dark; without it the scrollbar was a bright white strip. Set here, on the
+    // Catalogue alone — set page-wide it would give the transparent picker and
+    // capture bar a dark canvas, the opaque-overlay bug fixed in hive-v1-17.
+    <div style={{ display: 'flex', height: '100vh', background: ground, color: ink, fontFamily: sans, colorScheme: 'dark' }}>
       <aside style={{ width: 312, flexShrink: 0, borderRight: `1px solid ${line}`, background: panel, display: 'flex', flexDirection: 'column' }}>
         <div style={{ padding: '38px 16px 12px', display: 'flex', alignItems: 'baseline', justifyContent: 'space-between' }}>
           <span style={{ fontFamily: display, fontWeight: 700, fontSize: 16 }}>Bundles</span>
@@ -115,13 +120,13 @@ export function Catalogue(): React.JSX.Element {
                 style={{
                   display: 'block', width: '100%', boxSizing: 'border-box', textAlign: 'left',
                   padding: 12, borderRadius: 8, cursor: 'pointer', fontFamily: sans,
-                  background: on ? '#241F17' : 'transparent',
-                  border: `1px solid ${on ? '#453C2C' : 'transparent'}`,
+                  background: on ? theme.surfaceRaised : 'transparent',
+                  border: `1px solid ${on ? theme.borderSelected : 'transparent'}`,
                 }}
               >
                 <span style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
-                  <span style={{ width: 6, height: 6, borderRadius: '50%', background: b.damaged ? '#D9634F' : toneFor(b.status) }} />
-                  <span style={{ fontFamily: mono, fontSize: 10, letterSpacing: '.08em', color: b.damaged ? '#D9634F' : toneFor(b.status) }}>
+                  <span style={{ width: 6, height: 6, borderRadius: '50%', background: b.damaged ? theme.danger : toneFor(b.status) }} />
+                  <span style={{ fontFamily: mono, fontSize: 10, letterSpacing: '.08em', color: b.damaged ? theme.danger : toneFor(b.status) }}>
                     {b.damaged ? 'DAMAGED' : b.status.toUpperCase()}
                   </span>
                   <span style={{ flex: 1 }} />
@@ -145,7 +150,7 @@ export function Catalogue(): React.JSX.Element {
           <>
             <div style={{ fontFamily: mono, fontSize: 11, color: dim, marginBottom: 10 }}>{bundle.id}</div>
 
-            <label htmlFor="intent" style={{ display: 'block', fontFamily: mono, fontSize: 10, letterSpacing: '.1em', color: honey, marginBottom: 8 }}>
+            <label htmlFor="intent" style={{ display: 'block', fontFamily: mono, fontSize: 10, letterSpacing: '.1em', color: accent, marginBottom: 8 }}>
               WHAT I WANT DONE
             </label>
             <textarea
@@ -155,8 +160,8 @@ export function Catalogue(): React.JSX.Element {
               onBlur={(e) => void act('intent', () => window.hive!.catalogue!.editIntent(bundle.id, e.target.value))}
               style={{
                 width: '100%', boxSizing: 'border-box', minHeight: 72, resize: 'vertical',
-                background: '#1B1812', border: `1px solid #2F2A22`, borderLeft: `2px solid ${honey}`,
-                borderRadius: 9, padding: '14px 16px', color: '#D8D0BE', fontSize: 14,
+                background: theme.surface, border: `1px solid ${theme.border}`, borderLeft: `2px solid ${accent}`,
+                borderRadius: 9, padding: '14px 16px', color: theme.textBody, fontSize: 14,
                 lineHeight: 1.6, fontFamily: sans, outline: 'none', marginBottom: 22,
               }}
             />
@@ -167,7 +172,7 @@ export function Catalogue(): React.JSX.Element {
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
               {bundle.captures.map((c) => (
-                <div key={c.index} style={{ display: 'flex', gap: 16, alignItems: 'flex-start', background: '#1A1711', border: `1px solid ${line}`, borderRadius: 9, padding: 12 }}>
+                <div key={c.index} style={{ display: 'flex', gap: 16, alignItems: 'flex-start', background: theme.surface, border: `1px solid ${line}`, borderRadius: 9, padding: 12 }}>
                   <button
                     type="button"
                     title="Double-click to view full size"
@@ -184,12 +189,12 @@ export function Catalogue(): React.JSX.Element {
                     <img
                       src={c.src}
                       alt={c.note || `capture ${c.file}`}
-                      style={{ display: 'block', width: 176, height: 112, objectFit: 'cover', objectPosition: 'top left', borderRadius: 6, background: '#221E18', border: '1px solid #2F2A22' }}
+                      style={{ display: 'block', width: 176, height: 112, objectFit: 'cover', objectPosition: 'top left', borderRadius: 6, background: theme.surfaceRaised, border: `1px solid ${theme.border}` }}
                     />
                   </button>
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 9, marginBottom: 7 }}>
-                      <span style={{ fontFamily: mono, fontSize: 10, color: honey }}>{c.file}</span>
+                      <span style={{ fontFamily: mono, fontSize: 10, color: accent }}>{c.file}</span>
                       <span style={{ fontFamily: mono, fontSize: 10, color: dim }}>
                         {c.kind}{c.app ? ` · ${c.app}` : ''} · {c.width}×{c.height}
                       </span>
@@ -199,7 +204,7 @@ export function Catalogue(): React.JSX.Element {
                       key={`${bundle.id}-${c.index}-note`}
                       aria-label={`Note for ${c.file}`}
                       onBlur={(e) => void act('note', () => window.hive!.catalogue!.editNote(bundle.id, c.index, e.target.value))}
-                      style={{ width: '100%', boxSizing: 'border-box', minHeight: 48, resize: 'vertical', background: 'transparent', border: 'none', outline: 'none', color: '#D8D0BE', fontSize: 13, lineHeight: 1.55, fontFamily: sans }}
+                      style={{ width: '100%', boxSizing: 'border-box', minHeight: 48, resize: 'vertical', background: 'transparent', border: 'none', outline: 'none', color: theme.textBody, fontSize: 13, lineHeight: 1.55, fontFamily: sans }}
                     />
                     <div style={{ display: 'flex', gap: 14, marginTop: 6 }}>
                       <select
@@ -210,7 +215,7 @@ export function Catalogue(): React.JSX.Element {
                           if (!to) return
                           void act('move', () => window.hive!.catalogue!.moveCapture(bundle.id, c.index, to === '__new__' ? null : to))
                         }}
-                        style={{ background: '#221E18', color: muted, border: `1px solid #332E25`, borderRadius: 6, fontSize: 11, padding: '4px 8px', fontFamily: sans }}
+                        style={{ background: theme.surfaceRaised, color: muted, border: `1px solid ${theme.borderStrong}`, borderRadius: 6, fontSize: 11, padding: '4px 8px', fontFamily: sans }}
                       >
                         <option value="">Move to…</option>
                         <option value="__new__">A new bundle</option>
@@ -221,7 +226,7 @@ export function Catalogue(): React.JSX.Element {
                       <button
                         type="button"
                         onClick={() => void act('delete', () => window.hive!.catalogue!.deleteCapture(bundle.id, c.index))}
-                        style={{ background: 'none', border: 'none', color: '#8A6F62', fontSize: 11, cursor: 'pointer', fontFamily: sans, padding: 0 }}
+                        style={{ background: 'none', border: 'none', color: theme.danger, fontSize: 11, cursor: 'pointer', fontFamily: sans, padding: 0 }}
                       >
                         Delete capture
                       </button>
@@ -243,7 +248,7 @@ export function Catalogue(): React.JSX.Element {
             aria-label={`${c.file} full size`}
             onClick={() => setViewing(null)}
             style={{
-              position: 'fixed', inset: 0, zIndex: 10, background: 'rgba(6,5,3,.92)',
+              position: 'fixed', inset: 0, zIndex: 10, background: theme.backdrop,
               display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
               gap: 14, padding: '44px 32px 24px', boxSizing: 'border-box',
             }}
@@ -252,7 +257,7 @@ export function Catalogue(): React.JSX.Element {
               type="button"
               aria-label="Close"
               onClick={() => setViewing(null)}
-              style={{ position: 'absolute', top: 38, right: 24, width: 34, height: 34, borderRadius: 8, border: `1px solid #3A342B`, background: '#1E1B16', color: ink, fontSize: 16, cursor: 'pointer' }}
+              style={{ position: 'absolute', top: 38, right: 24, width: 34, height: 34, borderRadius: 8, border: `1px solid ${theme.borderStrong}`, background: theme.surface, color: ink, fontSize: 16, cursor: 'pointer' }}
             >
               ✕
             </button>
@@ -266,7 +271,7 @@ export function Catalogue(): React.JSX.Element {
               <div style={{ fontFamily: mono, fontSize: 11, color: dim, marginBottom: 6 }}>
                 {viewing + 1} / {bundle.captures.length} · {c.file} · {c.kind}{c.app ? ` · ${c.app}` : ''} · {c.width}×{c.height}
               </div>
-              {c.note && <div style={{ fontSize: 14, lineHeight: 1.55, color: '#D8D0BE' }}>{c.note}</div>}
+              {c.note && <div style={{ fontSize: 14, lineHeight: 1.55, color: theme.textBody }}>{c.note}</div>}
               <div style={{ fontFamily: mono, fontSize: 10, color: dim, marginTop: 8 }}>Left / Right arrow keys to step through · Esc to close</div>
             </div>
           </div>
@@ -285,7 +290,7 @@ export function Catalogue(): React.JSX.Element {
             type="button"
             disabled={!bundle || busy !== null}
             onClick={() => void act('handoff', () => window.hive!.catalogue!.handoff(bundle!.id, a.id))}
-            style={{ width: '100%', boxSizing: 'border-box', textAlign: 'left', padding: '12px 14px', borderRadius: 8, background: '#221E18', border: `1px solid #332E25`, color: ink, fontSize: 13, fontWeight: 600, cursor: bundle ? 'pointer' : 'default', fontFamily: sans }}
+            style={{ width: '100%', boxSizing: 'border-box', textAlign: 'left', padding: '12px 14px', borderRadius: 8, background: theme.surfaceRaised, border: `1px solid ${theme.borderStrong}`, color: ink, fontSize: 13, fontWeight: 600, cursor: bundle ? 'pointer' : 'default', fontFamily: sans }}
           >
             {a.label}
           </button>
@@ -295,14 +300,14 @@ export function Catalogue(): React.JSX.Element {
           <button
             type="button"
             onClick={() => void act('close', () => window.hive!.catalogue!.closeBundle(bundle.id))}
-            style={{ width: '100%', boxSizing: 'border-box', textAlign: 'left', padding: '12px 14px', borderRadius: 8, background: 'transparent', border: `1px dashed #332E25`, color: muted, fontSize: 13, cursor: 'pointer', fontFamily: sans }}
+            style={{ width: '100%', boxSizing: 'border-box', textAlign: 'left', padding: '12px 14px', borderRadius: 8, background: 'transparent', border: `1px dashed ${theme.borderStrong}`, color: muted, fontSize: 13, cursor: 'pointer', fontFamily: sans }}
           >
             Mark handled
           </button>
         )}
 
         {bundle && (
-          <div style={{ borderTop: `1px solid ${line}`, paddingTop: 16, marginTop: 6, fontFamily: mono, fontSize: 11, color: dim, lineHeight: 1.7, wordBreak: 'break-all' }}>
+          <div style={{ borderTop: `1px solid ${line}`, paddingTop: 16, marginTop: 6, fontFamily: mono, fontSize: 11, color: dim, lineHeight: 1.7, overflowWrap: 'anywhere' }}>
             {bundle.pointer}
           </div>
         )}

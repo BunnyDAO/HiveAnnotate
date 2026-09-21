@@ -71,7 +71,8 @@ export function createClipboardAdapter(deps: {
 }): HandoffAdapter {
   return {
     id: 'clipboard',
-    label: 'Copy pointer',
+    // Matches the capture bar's 'save + copy link'.
+    label: 'Copy link',
     handoff: async (target) => {
       deps.writeText(target.pointer)
     },

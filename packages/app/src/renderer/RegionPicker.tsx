@@ -1,10 +1,11 @@
+import { theme, fonts, accentAlpha } from './theme.ts'
 import { useCallback, useEffect, useState } from 'react'
 import { GRID_KEYS, RegionSelection } from '@hiveannotate/core/regionSelection'
 import type { Rect } from '@hiveannotate/core/regionSelection'
 
-const honey = '#E8A33D'
+const accent = theme.accent
 /** Light enough to read what is outside the selection, dark enough to separate it. */
-const SCRIM = 'rgba(9,7,4,.42)'
+const SCRIM = theme.scrim
 /** The picker's keys, in the order they are usually reached for. */
 const HINTS: [string, string][] = [
   ['Q W E …', 'select a square (again to unselect)'],
@@ -15,7 +16,7 @@ const HINTS: [string, string][] = [
   ['Esc', 'cancel'],
 ]
 
-const mono = "'IBM Plex Mono', ui-monospace, monospace"
+const mono = fonts.mono
 
 function Key({ children }: { children: React.ReactNode }): React.JSX.Element {
   return (
@@ -28,11 +29,11 @@ function Key({ children }: { children: React.ReactNode }): React.JSX.Element {
         height: 22,
         padding: '0 6px',
         borderRadius: 5,
-        background: '#2A261F',
-        border: '1px solid #3A342B',
+        background: theme.border,
+        border: `1px solid ${theme.borderStrong}`,
         fontFamily: mono,
         fontSize: 11,
-        color: '#D8D0BE',
+        color: theme.textBody,
       }}
     >
       {children}
@@ -143,7 +144,7 @@ export function RegionPicker(): React.JSX.Element {
         style={{
           position: 'absolute',
           ...local(rect),
-          border: `2px solid ${honey}`,
+          border: `2px solid ${accent}`,
           boxShadow: '0 0 0 1px rgba(0,0,0,.45)',
           pointerEvents: 'none',
         }}
@@ -158,15 +159,15 @@ export function RegionPicker(): React.JSX.Element {
             // Lines and letters only — no fills. Anything painted inside the
             // spotlight would stand between you and what you are framing.
             border: selection.isMarked(i)
-              ? `2px solid rgba(232,163,61,.9)`
-              : '1px dashed rgba(232,163,61,.35)',
+              ? `2px solid ${accentAlpha(.9)}`
+              : `1px dashed ${accentAlpha(.35)}`,
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            fontFamily: "'Space Grotesk', system-ui, sans-serif",
+            fontFamily: fonts.sans,
             fontWeight: 700,
             fontSize: Math.max(12, Math.min(48, cell.height / 4)),
-            color: selection.isMarked(i) ? honey : 'rgba(232,163,61,.7)',
+            color: selection.isMarked(i) ? accent : accentAlpha(.7),
             textShadow: '0 1px 3px rgba(0,0,0,.9), 0 0 1px rgba(0,0,0,.9)',
             pointerEvents: 'none',
           }}
@@ -197,8 +198,8 @@ export function RegionPicker(): React.JSX.Element {
             boxSizing: 'border-box',
             padding: '12px 18px',
             borderRadius: 12,
-            background: '#1E1B16',
-            border: '1px solid #3A342B',
+            background: theme.surface,
+            border: `1px solid ${theme.borderStrong}`,
             boxShadow: '0 24px 60px rgba(0,0,0,.7)',
             display: 'flex',
             flexWrap: 'wrap',
@@ -206,10 +207,10 @@ export function RegionPicker(): React.JSX.Element {
             alignItems: 'center',
             columnGap: 18,
             rowGap: 10,
-            fontFamily: "'IBM Plex Sans', system-ui, sans-serif",
+            fontFamily: fonts.sans,
           }}
         >
-          <span style={{ fontFamily: mono, fontSize: 11, color: honey, whiteSpace: 'nowrap' }}>
+          <span style={{ fontFamily: mono, fontSize: 11, color: accent, whiteSpace: 'nowrap' }}>
             {rect.x}, {rect.y} · {rect.width} × {rect.height}
           </span>
           {HINTS.map(([key, label]) => (
@@ -217,7 +218,7 @@ export function RegionPicker(): React.JSX.Element {
             // but is never broken across two lines.
             <span key={key} style={{ display: 'inline-flex', alignItems: 'center', gap: 7, whiteSpace: 'nowrap' }}>
               <Key>{key}</Key>
-              <span style={{ fontSize: 12, color: '#A89F8D' }}>{label}</span>
+              <span style={{ fontSize: 12, color: theme.muted }}>{label}</span>
             </span>
           ))}
         </div>

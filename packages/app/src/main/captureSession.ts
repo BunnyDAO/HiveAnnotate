@@ -10,7 +10,7 @@ import {
   defaultBundleRoot,
   explainFailure,
 } from '@hiveannotate/core'
-import type { CaptureIntent, CaptureTarget, PendingCapture } from '@hiveannotate/core'
+import type { CaptureIntent, CaptureTarget, CommitTarget, PendingCapture } from '@hiveannotate/core'
 import { helperPath } from './helper.ts'
 import { Overlay } from './overlay.ts'
 import { RegionOverlay } from './regionOverlay.ts'
@@ -159,15 +159,15 @@ export class CaptureSession {
   }
 
   private wireIpc(): void {
-    ipcMain.handle('capture:commit', async (_e, payload: { note: string; targetIndex: number; copyPointer: boolean }) => {
+    ipcMain.handle('capture:commit', async (_e, payload: { note: string; target: CommitTarget; copyPointer: boolean }) => {
       if (!this.pending) return null
 
-      const target =
-        payload.targetIndex === -1
-          ? ({ kind: 'new' } as const)
-          : payload.targetIndex === 0
-            ? ({ kind: 'active' } as const)
-            : ({ kind: 'bundle', id: this.bundleIds[payload.targetIndex - 1]! } as const)
+      // A bundle picked from the chips must still be one that was offered:
+      // anything else from the renderer is refused rather than trusted.
+      const target: CommitTarget =
+        payload.target.kind === 'bundle' && !this.bundleIds.includes(payload.target.id)
+          ? { kind: 'active' }
+          : payload.target
 
       const bundle = await this.flow.commit(this.pending, payload.note, {
         target,

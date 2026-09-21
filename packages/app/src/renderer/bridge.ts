@@ -1,3 +1,5 @@
+import type { FilingTarget } from '@hiveannotate/core/filingChoices'
+
 /** The single declaration of what preload exposes on the window. */
 
 export interface Destination {
@@ -84,7 +86,7 @@ export interface HiveBridge {
   appName: string
   bundleId: string
   onPending?: (fn: (view: PendingView) => void) => void
-  commit?: (p: { note: string; targetIndex: number; copyPointer: boolean }) => Promise<unknown>
+  commit?: (p: { note: string; target: FilingTarget; copyPointer: boolean }) => Promise<unknown>
   discard?: () => Promise<unknown>
   onFailed?: (fn: (payload: FailurePayload) => void) => void
   retry?: () => Promise<unknown>

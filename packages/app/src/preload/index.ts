@@ -17,7 +17,7 @@ contextBridge.exposeInMainWorld('hive', {
   onPending: (fn: (view: PendingView) => void) =>
     ipcRenderer.on('capture:pending', (_e, view: PendingView) => fn(view)),
 
-  commit: (payload: { note: string; targetIndex: number; copyPointer: boolean }) =>
+  commit: (payload: { note: string; target: unknown; copyPointer: boolean }) =>
     ipcRenderer.invoke('capture:commit', payload),
 
   discard: () => ipcRenderer.invoke('capture:discard'),

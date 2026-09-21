@@ -50,7 +50,7 @@ beforeEach(async () => {
   registry = new AdapterRegistry()
   registry.register({
     id: 'clipboard',
-    label: 'Copy pointer',
+    label: 'Copy link',
     handoff: async (t) => { copied.push(t.pointer) },
   })
   now = new Date('2026-09-20T14:00:00Z')
@@ -198,7 +198,7 @@ describe('⌘⏎ — file it and copy the pointer', () => {
     const failing = new AdapterRegistry()
     failing.register({
       id: 'clipboard',
-      label: 'Copy pointer',
+      label: 'Copy link',
       handoff: async () => { throw new Error('clipboard unavailable') },
     })
     const f = new CaptureFlow({ backend: backendReturning(goodCapture), store, tracker, registry: failing, now: () => now, bundleRoot: join(home, 'bundles') })
