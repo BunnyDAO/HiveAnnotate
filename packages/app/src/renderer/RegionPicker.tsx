@@ -5,6 +5,16 @@ import type { Rect } from '@hiveannotate/core/regionSelection'
 const honey = '#E8A33D'
 /** Light enough to read what is outside the selection, dark enough to separate it. */
 const SCRIM = 'rgba(9,7,4,.42)'
+/** The picker's keys, in the order they are usually reached for. */
+const HINTS: [string, string][] = [
+  ['Q W E …', 'select a square (again to unselect)'],
+  ['Enter', 'capture'],
+  ['Space', 'zoom in'],
+  ['Delete', 'undo'],
+  ['Shift + arrows', 'nudge an edge'],
+  ['Esc', 'cancel'],
+]
+
 const mono = "'IBM Plex Mono', ui-monospace, monospace"
 
 function Key({ children }: { children: React.ReactNode }): React.JSX.Element {
@@ -165,32 +175,52 @@ export function RegionPicker(): React.JSX.Element {
         </div>
       ))}
 
+      {/* The hint bar. A full-width row that centres the bar inside it —
+          not left:50% + translateX(-50%), which caps an absolutely positioned
+          element at half the screen's width and crushed every hint onto two
+          lines once they were written out as words. */}
       <div
         style={{
           position: 'absolute',
-          left: '50%',
-          transform: 'translateX(-50%)',
+          left: 0,
+          right: 0,
           bottom: 48,
-          padding: '14px 18px',
-          borderRadius: 12,
-          background: '#1E1B16',
-          border: '1px solid #3A342B',
-          boxShadow: '0 24px 60px rgba(0,0,0,.7)',
           display: 'flex',
-          alignItems: 'center',
-          gap: 16,
-          fontFamily: "'IBM Plex Sans', system-ui, sans-serif",
+          justifyContent: 'center',
+          padding: '0 24px',
+          pointerEvents: 'none',
         }}
       >
-        <span style={{ fontFamily: mono, fontSize: 11, color: honey }}>
-          {rect.x}, {rect.y} · {rect.width} × {rect.height}
-        </span>
-        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 7 }}><Key>Enter</Key><span style={{ fontSize: 12, color: '#A89F8D' }}>capture</span></span>
-        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 7 }}><Key>Q W E …</Key><span style={{ fontSize: 12, color: '#A89F8D' }}>select a square · press again to unselect</span></span>
-        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 7 }}><Key>Delete</Key><span style={{ fontSize: 12, color: '#A89F8D' }}>undo</span></span>
-        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 7 }}><Key>Space</Key><span style={{ fontSize: 12, color: '#A89F8D' }}>zoom in</span></span>
-        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 7 }}><Key>Shift + arrows</Key><span style={{ fontSize: 12, color: '#A89F8D' }}>nudge edge</span></span>
-        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 7 }}><Key>Esc</Key><span style={{ fontSize: 12, color: '#A89F8D' }}>cancel</span></span>
+        <div
+          style={{
+            maxWidth: '100%',
+            boxSizing: 'border-box',
+            padding: '12px 18px',
+            borderRadius: 12,
+            background: '#1E1B16',
+            border: '1px solid #3A342B',
+            boxShadow: '0 24px 60px rgba(0,0,0,.7)',
+            display: 'flex',
+            flexWrap: 'wrap',
+            justifyContent: 'center',
+            alignItems: 'center',
+            columnGap: 18,
+            rowGap: 10,
+            fontFamily: "'IBM Plex Sans', system-ui, sans-serif",
+          }}
+        >
+          <span style={{ fontFamily: mono, fontSize: 11, color: honey, whiteSpace: 'nowrap' }}>
+            {rect.x}, {rect.y} · {rect.width} × {rect.height}
+          </span>
+          {HINTS.map(([key, label]) => (
+            // nowrap per hint: a hint may move to the next row as a whole,
+            // but is never broken across two lines.
+            <span key={key} style={{ display: 'inline-flex', alignItems: 'center', gap: 7, whiteSpace: 'nowrap' }}>
+              <Key>{key}</Key>
+              <span style={{ fontSize: 12, color: '#A89F8D' }}>{label}</span>
+            </span>
+          ))}
+        </div>
       </div>
     </div>
   )

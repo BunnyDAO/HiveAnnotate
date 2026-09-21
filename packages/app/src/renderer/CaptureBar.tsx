@@ -123,7 +123,9 @@ export function CaptureBar(): React.JSX.Element {
     <div
       style={{
         boxSizing: 'border-box',
-        height: '100vh',
+        // Sized to its content, not the window: the window is tall enough for
+        // the failure state, and a full-height panel left a band of dead space
+        // under the hints in the normal one. What is below is transparent.
         padding: '18px 20px',
         borderRadius: 14,
         background: ground,
@@ -141,9 +143,11 @@ export function CaptureBar(): React.JSX.Element {
             {failure ? failure.explanation.title.toUpperCase() : 'CAPTURED'}
           </span>
         </span>
-        <span style={{ fontFamily: mono, fontSize: 11, color: dim }}>
-          {view ? `${view.kind}${view.app ? ` · ${view.app}` : ''} · ${view.width}×${view.height}` : '…'}
-        </span>
+        {view && !failure && (
+          <span style={{ fontFamily: mono, fontSize: 11, color: dim }}>
+            {`${view.kind}${view.app ? ` · ${view.app}` : ''} · ${view.width}×${view.height}`}
+          </span>
+        )}
       </div>
 
       <label htmlFor="note" style={{ position: 'absolute', width: 1, height: 1, overflow: 'hidden', clip: 'rect(0 0 0 0)' }}>
@@ -245,13 +249,21 @@ export function CaptureBar(): React.JSX.Element {
         </div>
       )}
 
-      <div style={{ borderTop: `1px solid #2A261F`, paddingTop: 13, display: 'flex', alignItems: 'center', gap: 16, flexWrap: 'wrap' }}>
+      {/* In the failure state Enter means retry, so the normal hints — where
+          Enter means save — would show two meanings for one key at once. */}
+      {failure ? (
+        <div style={{ borderTop: `1px solid #2A261F`, paddingTop: 13, display: 'flex', alignItems: 'center', gap: 16, flexWrap: 'wrap' }}>
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 7 }}><Key>Esc</Key><span style={{ fontSize: 12, color: muted }}>throw away</span></span>
+        </div>
+      ) : (
+        <div style={{ borderTop: `1px solid #2A261F`, paddingTop: 13, display: 'flex', alignItems: 'center', gap: 16, flexWrap: 'wrap' }}>
         <span style={{ display: 'inline-flex', alignItems: 'center', gap: 7 }}><Key>Enter</Key><span style={{ fontSize: 12, color: muted }}>save</span></span>
         <span style={{ display: 'inline-flex', alignItems: 'center', gap: 7 }}><Key>Shift + Enter</Key><span style={{ fontSize: 12, color: muted }}>save as a new bundle</span></span>
         <span style={{ display: 'inline-flex', alignItems: 'center', gap: 7 }}><Key>Tab</Key><span style={{ fontSize: 12, color: muted }}>choose bundle</span></span>
         <span style={{ display: 'inline-flex', alignItems: 'center', gap: 7 }}><Key>Cmd + Enter</Key><span style={{ fontSize: 12, color: muted }}>save + copy link</span></span>
         <span style={{ display: 'inline-flex', alignItems: 'center', gap: 7 }}><Key>Esc</Key><span style={{ fontSize: 12, color: muted }}>throw away</span></span>
-      </div>
+        </div>
+      )}
     </div>
   )
 }

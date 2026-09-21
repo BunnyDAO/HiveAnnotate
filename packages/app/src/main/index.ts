@@ -577,3 +577,31 @@ if (process.argv.includes('--leak-test')) {
     app.quit()
   })
 }
+
+/**
+ * Dev-only: opens a surface and photographs the screen, so layout can be
+ * looked at rather than guessed at. `--snap picker` or `--snap bar`.
+ */
+const snapIndex = process.argv.indexOf('--snap')
+if (snapIndex !== -1) {
+  const surface = process.argv[snapIndex + 1] ?? 'picker'
+  void app.whenReady().then(async () => {
+    const { execFile: ef } = await import('node:child_process')
+    const { promisify: pf } = await import('node:util')
+    const shoot = pf(ef)
+    const wait = (ms: number) => new Promise((r) => setTimeout(r, ms))
+    await wait(1200)
+    if (surface === 'fail') {
+      const { CaptureSession: Session } = await import('./captureSession.ts')
+      Session.forceFailure = 'no-permission'
+    }
+    await session?.capture(surface === 'picker' ? 'region' : 'screen')
+    await wait(1500)
+    await shoot('screencapture', ['-x', `/tmp/hive-snap-${surface}.png`])
+    console.log(`SNAP: /tmp/hive-snap-${surface}.png`)
+    const open = BrowserWindow.getAllWindows().find((w) => w.isVisible())
+    open?.webContents.sendInputEvent({ type: 'keyDown', keyCode: 'Escape' })
+    await wait(500)
+    app.quit()
+  })
+}

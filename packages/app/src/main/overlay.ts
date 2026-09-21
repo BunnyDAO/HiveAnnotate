@@ -36,14 +36,20 @@ export class Overlay {
     const { width, height } = screen.getPrimaryDisplay().workAreaSize
 
     this.window = new BrowserWindow({
-      width: 780,
-      height: 260,
-      x: Math.round((width - 780) / 2),
+      // Wide enough for every hint on one row now they are written as words
+      // ("Shift + Enter") rather than glyphs; at 780 the last one wrapped.
+      width: 900,
+      // Room for the failure state, which adds an explanation and actions.
+      height: 320,
+      x: Math.round((width - 900) / 2),
       y: Math.round(height - 380),
       show: false,
       frame: false,
       transparent: true,
-      hasShadow: true,
+      // The panel draws its own shadow in CSS. A window shadow outlines the
+      // whole window, transparent area included, which showed as a faint
+      // frame hanging below the bar.
+      hasShadow: false,
       resizable: false,
       skipTaskbar: true,
       alwaysOnTop: true,
