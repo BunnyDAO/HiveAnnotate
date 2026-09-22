@@ -82,7 +82,7 @@ export class Catalogue {
       minHeight: 560,
       title: 'HiveAnnotate',
       titleBarStyle: 'hiddenInset',
-      backgroundColor: '#14120E',
+      backgroundColor: '#0c1220', // theme.background, so opening shows no flash of another colour
       show: false,
       webPreferences: {
         preload: join(here, '../preload/index.cjs'),

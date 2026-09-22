@@ -99,6 +99,10 @@ export function Catalogue(): React.JSX.Element {
     // Catalogue alone — set page-wide it would give the transparent picker and
     // capture bar a dark canvas, the opaque-overlay bug fixed in hive-v1-17.
     <div style={{ display: 'flex', height: '100vh', background: ground, color: ink, fontFamily: sans, colorScheme: 'dark' }}>
+      {/* The window hides the macOS title bar (hiddenInset), so nothing is there to
+          grab. This strip is the title bar: dragging it moves the window. Both
+          panes start 38px down, so it covers no controls. */}
+      <div style={{ position: 'fixed', top: 0, left: 0, right: 0, height: 32, zIndex: 10, WebkitAppRegion: 'drag' } as React.CSSProperties} />
       <aside style={{ width: 312, flexShrink: 0, borderRight: `1px solid ${line}`, background: panel, display: 'flex', flexDirection: 'column' }}>
         <div style={{ padding: '38px 16px 12px', display: 'flex', alignItems: 'baseline', justifyContent: 'space-between' }}>
           <span style={{ fontFamily: display, fontWeight: 700, fontSize: 16 }}>Bundles</span>
