@@ -29,7 +29,7 @@ export {
   createClipboardAdapter,
   createFolderAdapter,
 } from './handoff.ts'
-export type { HandoffAdapter, HandoffTarget } from './handoff.ts'
+export type { AdapterInfo, HandoffAdapter, HandoffTarget } from './handoff.ts'
 export {
   APPLE_AREA_SCREENSHOT,
   DEFAULT_CHORDS,

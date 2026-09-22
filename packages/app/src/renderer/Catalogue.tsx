@@ -3,7 +3,7 @@ import mark from './assets/mark.png'
 import { DEFAULT_CHORDS } from '@hiveannotate/core/hotkeys'
 import { theme, fonts, accentAlpha } from './theme.ts'
 import { useCallback, useEffect, useState } from 'react'
-import type { BundleSummary, BundleView } from './bridge.ts'
+import type { AdapterInfo, BundleSummary, BundleView } from './bridge.ts'
 
 const ground = theme.background
 const panel = theme.surface
@@ -33,7 +33,9 @@ export function Catalogue(): React.JSX.Element {
   const [bundles, setBundles] = useState<BundleSummary[]>([])
   const [selected, setSelected] = useState<string | null>(null)
   const [bundle, setBundle] = useState<BundleView | null>(null)
-  const [adapters, setAdapters] = useState<{ id: string; label: string }[]>([])
+  const [adapters, setAdapters] = useState<AdapterInfo[]>([])
+  /** The hand-off button that just ran, and whether it worked, shown for a moment. */
+  const [handedOff, setHandedOff] = useState<{ id: string; ok: boolean } | null>(null)
   const [busy, setBusy] = useState<string | null>(null)
   /** Index into bundle.captures of the screenshot open full size, if any. */
   const [viewing, setViewing] = useState<number | null>(null)
@@ -82,6 +84,20 @@ export function Catalogue(): React.JSX.Element {
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
   }, [viewing, bundle])
+
+  async function handOff(adapterId: string): Promise<void> {
+    if (!bundle) return
+    let ok = true
+    try {
+      await window.hive!.catalogue!.handoff(bundle.id, adapterId)
+    } catch {
+      ok = false
+    }
+    // Without this the button did its job silently, and the user could not
+    // tell whether anything was copied.
+    setHandedOff({ id: adapterId, ok })
+    window.setTimeout(() => setHandedOff((h) => (h?.id === adapterId ? null : h)), 2200)
+  }
 
   async function act(label: string, fn: () => Promise<unknown>): Promise<void> {
     setBusy(label)
@@ -296,28 +312,44 @@ export function Catalogue(): React.JSX.Element {
       })()}
 
       <aside style={{ width: 300, flexShrink: 0, borderLeft: `1px solid ${line}`, background: panel, padding: '38px 20px', display: 'flex', flexDirection: 'column', gap: 12 }}>
-        <div style={{ fontFamily: display, fontWeight: 700, fontSize: 15, marginBottom: 2 }}>Hand off</div>
+        {/* :active cannot be written inline; this is the press the buttons need. */}
+        <style>{`.handoff{transition:transform .08s ease,border-color .15s ease,background .15s ease}.handoff:not(:disabled):active{transform:scale(.97);background:${theme.borderStrong}}`}</style>
+
+        <div style={{ fontFamily: display, fontWeight: 700, fontSize: 15, marginBottom: 2 }}>Send to your AI</div>
         <p style={{ margin: 0, fontSize: 12, lineHeight: 1.5, color: dim }}>
-          The core does not know what any of these are. Each one is an adapter.
+          Hand this bundle to an AI to work on, or open it yourself.
         </p>
 
-        {adapters.map((a) => (
-          <button
-            key={a.id}
-            type="button"
-            disabled={!bundle || busy !== null}
-            onClick={() => void act('handoff', () => window.hive!.catalogue!.handoff(bundle!.id, a.id))}
-            style={{ width: '100%', boxSizing: 'border-box', textAlign: 'left', padding: '12px 14px', borderRadius: 8, background: theme.surfaceRaised, border: `1px solid ${theme.borderStrong}`, color: ink, fontSize: 13, fontWeight: 600, cursor: bundle ? 'pointer' : 'default', fontFamily: sans }}
-          >
-            {a.label}
-          </button>
-        ))}
+        {adapters.map((a) => {
+          const result = handedOff?.id === a.id ? handedOff : null
+          return (
+            <button
+              key={a.id}
+              type="button"
+              className="handoff"
+              disabled={!bundle || busy !== null}
+              onClick={() => void handOff(a.id)}
+              style={{
+                width: '100%', boxSizing: 'border-box', textAlign: 'left', padding: '12px 14px', borderRadius: 8,
+                background: result?.ok ? accentAlpha(0.12) : theme.surfaceRaised,
+                border: `1px solid ${result ? (result.ok ? accent : theme.danger) : theme.borderStrong}`,
+                color: ink, cursor: bundle ? 'pointer' : 'default', fontFamily: sans,
+              }}
+            >
+              <div aria-live="polite" style={{ fontSize: 13, fontWeight: 600, color: result ? (result.ok ? accent : theme.danger) : ink }}>
+                {result ? (result.ok ? a.done : "That didn't work. Try again.") : a.label}
+              </div>
+              <div style={{ marginTop: 4, fontSize: 11.5, lineHeight: 1.45, color: dim, fontWeight: 400 }}>{a.description}</div>
+            </button>
+          )
+        })}
 
         {bundle && (
           // Handled and reopened are one toggle: a bundle marked handled by
           // mistake has to be able to come back.
           <button
             type="button"
+            className="handoff"
             onClick={() =>
               void act(bundle.status === 'open' ? 'close' : 'reopen', () =>
                 bundle.status === 'open'
@@ -325,15 +357,21 @@ export function Catalogue(): React.JSX.Element {
                   : window.hive!.catalogue!.reopenBundle(bundle.id),
               )
             }
-            style={{ width: '100%', boxSizing: 'border-box', textAlign: 'left', padding: '12px 14px', borderRadius: 8, background: 'transparent', border: `1px dashed ${theme.borderStrong}`, color: muted, fontSize: 13, cursor: 'pointer', fontFamily: sans }}
+            style={{ width: '100%', boxSizing: 'border-box', textAlign: 'left', padding: '12px 14px', borderRadius: 8, background: 'transparent', border: `1px dashed ${theme.borderStrong}`, color: muted, cursor: 'pointer', fontFamily: sans }}
           >
-            {bundle.status === 'open' ? 'Mark handled' : 'Reopen'}
+            <div style={{ fontSize: 13 }}>{bundle.status === 'open' ? 'Mark handled' : 'Reopen'}</div>
+            <div style={{ marginTop: 4, fontSize: 11.5, lineHeight: 1.45, color: dim }}>
+              {bundle.status === 'open'
+                ? 'Done with it. It leaves the open list, and you can reopen it.'
+                : 'Put it back on the open list.'}
+            </div>
           </button>
         )}
 
         {bundle && (
-          <div style={{ borderTop: `1px solid ${line}`, paddingTop: 16, marginTop: 6, fontFamily: mono, fontSize: 11, color: dim, lineHeight: 1.7, overflowWrap: 'anywhere' }}>
-            {bundle.pointer}
+          <div style={{ borderTop: `1px solid ${line}`, paddingTop: 16, marginTop: 6 }}>
+            <div style={{ fontFamily: mono, fontSize: 10, letterSpacing: '.1em', color: accent, marginBottom: 8 }}>WHAT YOUR AI GETS</div>
+            <div style={{ fontFamily: mono, fontSize: 11, color: dim, lineHeight: 1.7, overflowWrap: 'anywhere' }}>{bundle.pointer}</div>
           </div>
         )}
       </aside>

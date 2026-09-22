@@ -24,9 +24,17 @@ export interface HandoffTarget {
 
 export interface HandoffAdapter {
   id: string
+  /** The button: a short verb. */
   label: string
+  /** One line under the button saying what it does, for someone who has never used it. */
+  description: string
+  /** Shown on the button for a moment after it worked, e.g. "Copied". */
+  done: string
   handoff(target: HandoffTarget): Promise<void>
 }
+
+/** What the UI is told about an adapter: its words, never how it works. */
+export type AdapterInfo = Pick<HandoffAdapter, 'id' | 'label' | 'description' | 'done'>
 
 /**
  * The one-line pointer the capture bar copies (Cmd + Enter).
@@ -39,8 +47,8 @@ export interface HandoffAdapter {
  */
 export function bundlePointer(id: string, directory: string): string {
   return (
-    `HiveAnnotate bundle ${id}: screenshots plus notes on what needs doing. ` +
-    `Read ${join(directory, 'bundle.md')} — the screenshots are in the same folder.`
+    `Take a look at HiveAnnotate bundle ${id}: screenshots of a problem, with my notes on what needs doing. ` +
+    `Read ${join(directory, 'bundle.md')} first. It describes each screenshot, and the image files are in the same folder.`
   )
 }
 
@@ -59,7 +67,9 @@ export function parseBundlePointer(text: string): string | null {
 export function createFolderAdapter(deps: { reveal: (path: string) => void }): HandoffAdapter {
   return {
     id: 'folder',
-    label: 'Reveal folder',
+    label: 'Open folder',
+    description: 'See the screenshots and notes as files.',
+    done: 'Opened',
     handoff: async (target) => {
       deps.reveal(target.directory)
     },
@@ -71,8 +81,11 @@ export function createClipboardAdapter(deps: {
 }): HandoffAdapter {
   return {
     id: 'clipboard',
-    // Matches the capture bar's 'save + copy link'.
-    label: 'Copy link',
+    // Matches the capture bar's 'save + copy prompt'. Not "link": what it
+    // copies is a sentence for an AI, and calling it a link confused people.
+    label: 'Copy prompt',
+    description: 'Paste it into Claude Code, Codex, Cursor or any AI that can read files on this computer. It points the AI at the screenshots and notes.',
+    done: 'Copied — now paste it into your AI',
     handoff: async (target) => {
       deps.writeText(target.pointer)
     },
@@ -100,8 +113,8 @@ export class AdapterRegistry {
     this.adapters.set(adapter.id, adapter)
   }
 
-  list(): { id: string; label: string }[] {
-    return [...this.adapters.values()].map(({ id, label }) => ({ id, label }))
+  list(): AdapterInfo[] {
+    return [...this.adapters.values()].map(({ id, label, description, done }) => ({ id, label, description, done }))
   }
 
   async handoff(adapterId: string, target: HandoffTarget): Promise<void> {

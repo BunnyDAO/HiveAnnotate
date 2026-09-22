@@ -43,7 +43,7 @@ Or paste the pointer HiveAnnotate copies when you save with **Cmd + Enter** — 
 itself, so it works in any agent, with or without this server:
 
 ```
-HiveAnnotate bundle 2026-09-21-sidebar: screenshots plus notes on what needs doing. Read /Users/you/HiveAnnotate/bundles/2026-09-21-sidebar/bundle.md — the screenshots are in the same folder.
+Take a look at HiveAnnotate bundle 2026-09-21-sidebar: screenshots of a problem, with my notes on what needs doing. Read /Users/you/HiveAnnotate/bundles/2026-09-21-sidebar/bundle.md first. It describes each screenshot, and the image files are in the same folder.
 ```
 
 An agent with no knowledge of HiveAnnotate was handed only that line and found the bundle,

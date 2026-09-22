@@ -423,7 +423,7 @@ export function CaptureBar(): React.JSX.Element {
         <span style={{ display: 'inline-flex', alignItems: 'center', gap: 7 }}><Key>Enter</Key><span style={{ fontSize: 12, color: muted }}>save</span></span>
         <span style={{ display: 'inline-flex', alignItems: 'center', gap: 7 }}><Key>Shift + Enter</Key><span style={{ fontSize: 12, color: muted }}>new bundle</span></span>
         <span style={{ display: 'inline-flex', alignItems: 'center', gap: 7 }}><Key>Tab</Key><span style={{ fontSize: 12, color: muted }}>choose bundle</span></span>
-        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 7 }}><Key>{`${MOD} + Enter`}</Key><span style={{ fontSize: 12, color: muted }}>save + copy link</span></span>
+        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 7 }}><Key>{`${MOD} + Enter`}</Key><span style={{ fontSize: 12, color: muted }}>save + copy prompt</span></span>
           <span style={{ display: 'inline-flex', alignItems: 'center', gap: 7 }}><Key>{`${MOD} + P`}</Key><span style={{ fontSize: 12, color: muted }}>{previewing ? 'close preview' : 'preview'}</span></span>
         <span style={{ display: 'inline-flex', alignItems: 'center', gap: 7 }}><Key>Esc</Key><span style={{ fontSize: 12, color: muted }}>throw away</span></span>
         </div>

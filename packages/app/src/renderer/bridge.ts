@@ -82,7 +82,7 @@ export interface CatalogueBridge {
   closeBundle: (id: string) => Promise<unknown>
   reopenBundle: (id: string) => Promise<unknown>
   handoff: (id: string, adapterId: string) => Promise<unknown>
-  adapters: () => Promise<{ id: string; label: string }[]>
+  adapters: () => Promise<AdapterInfo[]>
   onRefresh?: (fn: () => void) => void
 }
 
@@ -111,3 +111,12 @@ declare global {
 }
 
 export {}
+
+/** A hand-off destination as the Catalogue sees it: its words, never how it works. */
+export interface AdapterInfo {
+  id: string
+  label: string
+  description: string
+  /** Shown on the button for a moment after it worked. */
+  done: string
+}

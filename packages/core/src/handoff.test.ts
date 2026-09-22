@@ -105,7 +105,7 @@ describe('the registry', () => {
   it('invokes an adapter purely by id, knowing nothing about what it is', async () => {
     const handoff = vi.fn()
     const registry = new AdapterRegistry()
-    registry.register({ id: 'folder', label: 'Reveal folder', handoff })
+    registry.register({ id: 'folder', label: 'Open folder', description: 'd', done: 'Opened', handoff })
 
     await registry.handoff('folder', await target())
 
@@ -120,6 +120,22 @@ describe('the registry', () => {
     expect(registry.list().map((a) => a.id)).toEqual(['folder', 'clipboard'])
   })
 
+  // Each button in the Catalogue has to say what it does and confirm that it
+  // did it. The Catalogue cannot know either (it knows no destination), so the
+  // adapter carries its own words.
+  it('lists what each adapter does and what to say once it has', () => {
+    const registry = new AdapterRegistry()
+    registry.register(createFolderAdapter({ reveal: vi.fn() }))
+    registry.register(createClipboardAdapter({ writeText: vi.fn() }))
+
+    for (const a of registry.list()) {
+      expect(a.label?.trim(), `${a.id} label`).toBeTruthy()
+      expect(a.description?.trim(), `${a.id} description`).toBeTruthy()
+      expect(a.done?.trim(), `${a.id} done`).toBeTruthy()
+    }
+    expect(registry.list().find((a) => a.id === 'clipboard')?.label).toBe('Copy prompt')
+  })
+
   // The agnostic claim, made mechanical: if a new destination ever needs a
   // change inside core, the core is no longer destination-agnostic.
   it('accepts a brand new adapter with no change to any core module', async () => {
@@ -127,6 +143,8 @@ describe('the registry', () => {
     const invented: HandoffAdapter = {
       id: 'carrier-pigeon',
       label: 'Carrier pigeon',
+      description: 'Sends it by bird.',
+      done: 'Sent',
       handoff: async (t) => { seen.push(t.bundle.id) },
     }
 
@@ -154,6 +172,8 @@ describe('the registry', () => {
     registry.register({
       id: 'flaky',
       label: 'Flaky',
+      description: 'Fails.',
+      done: 'Done',
       handoff: async () => { throw new Error('network down') },
     })
     const t = await target()
