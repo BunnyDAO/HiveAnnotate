@@ -1,4 +1,4 @@
-import { ipcMain, shell } from 'electron'
+import { ipcMain, screen, shell } from 'electron'
 import {
   ActiveBundleTracker,
   AdapterRegistry,
@@ -6,12 +6,14 @@ import {
   CaptureFlow,
   MacCaptureBackend,
   WindowLocator,
+  captureOutline,
   defaultActiveBundleRecord,
   defaultBundleRoot,
   explainFailure,
 } from '@hiveannotate/core'
 import type { CaptureIntent, CaptureTarget, CommitTarget, PendingCapture } from '@hiveannotate/core'
 import { helperPath } from './helper.ts'
+import { CaptureFlash } from './captureFlash.ts'
 import { Overlay } from './overlay.ts'
 import { RegionOverlay } from './regionOverlay.ts'
 import type { Rect } from './regionOverlay.ts'
@@ -35,6 +37,7 @@ export class CaptureSession {
 
   private readonly overlay = new Overlay()
   private readonly regionOverlay = new RegionOverlay()
+  readonly flash = new CaptureFlash()
   private readonly store: BundleStore
   private readonly flow: CaptureFlow
   private readonly locator = new WindowLocator(helperPath(), { excludePid: process.pid })
@@ -42,6 +45,8 @@ export class CaptureSession {
   private bundleIds: string[] = []
   /** Kept so a retry aims at the same thing, with the user's note intact. */
   private lastTarget: CaptureTarget | null = null
+  /** Where the captured window was, so the outline can be drawn around it. */
+  private windowBounds: Rect | undefined
 
   constructor(registry: AdapterRegistry) {
     const root = defaultBundleRoot()
@@ -111,6 +116,8 @@ export class CaptureSession {
   ): Promise<void> {
     const started = Date.now()
     this.lastTarget = target
+    // An outline still fading from the last capture must not be in this one.
+    this.flash.hideNow()
     const begun = await this.flow.begin(target, this.overlay.hostApp() ?? undefined)
 
     if (!begun.ok) {
@@ -128,6 +135,7 @@ export class CaptureSession {
     }
 
     this.pending = begun.pending
+    this.showOutline(target)
     const open = (await this.store.listBundles()).filter((b) => b.status === 'open' && !b.damaged)
     this.bundleIds = open.map((b) => b.id)
 
@@ -148,7 +156,20 @@ export class CaptureSession {
     console.log(`[capture] ${intentLabel} — bar up in ${Date.now() - started}ms`)
   }
 
+  /** Briefly outlines what was just taken. Only after the shutter, never before. */
+  private showOutline(target: CaptureTarget): void {
+    const primary = screen.getPrimaryDisplay()
+    const displays = [primary, ...screen.getAllDisplays().filter((d) => d.id !== primary.id)].map((d) => d.bounds)
+    const rect = captureOutline(target, { displays, windowBounds: this.windowBounds })
+    if (!rect) return
+    // Not awaited: the capture bar must not wait on a decoration.
+    void this.flash.show(rect, target.kind === 'window').catch((err: unknown) => {
+      console.log(`[capture] outline not shown: ${String(err)}`)
+    })
+  }
+
   private async targetFor(intent: CaptureIntent): Promise<CaptureTarget | null> {
+    this.windowBounds = undefined
     if (intent === 'screen') return { kind: 'screen' }
     const located = await this.locator.frontmost()
     if (!located.ok) {
@@ -160,6 +181,8 @@ export class CaptureSession {
       console.log(`[capture] no window to capture (${located.reason}) — capturing the screen instead`)
       return { kind: 'screen' }
     }
+    const { x, y, width, height } = located.window
+    this.windowBounds = { x, y, width, height }
     return { kind: 'window', windowId: located.window.windowId }
   }
 

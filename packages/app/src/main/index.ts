@@ -1,4 +1,4 @@
-import { app, Tray, Menu, BrowserWindow, nativeImage, protocol, shell, dialog } from 'electron'
+import { app, Tray, Menu, BrowserWindow, nativeImage, protocol, shell, dialog, screen } from 'electron'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { APP_NAME, BUNDLE_ID } from '@hiveannotate/core'
@@ -307,6 +307,15 @@ if (process.argv.includes('--self-test')) {
     await wait(1500)
     const bar = await waitFor('capture')
     check('screen: bar appeared', Boolean(bar))
+    {
+      // The shutter is silent otherwise; the outline shows what was taken, and
+      // by now (1.5s on) it has faded and gone.
+      const drawn = session?.flash.lastBounds
+      const main = screen.getPrimaryDisplay().bounds
+      check('outline: drawn around the whole screen after the shutter',
+        JSON.stringify(drawn) === JSON.stringify(main), `${JSON.stringify(drawn)} vs ${JSON.stringify(main)}`)
+      check('outline: gone again within a second', session?.flash.isVisible() === false, '')
+    }
     if (bar) {
       // Nothing is active yet, so this capture starts a new bundle — which
       // needs a name the user types. Enter on the note moves to the name field.
@@ -405,12 +414,15 @@ if (process.argv.includes('--self-test')) {
     // --- a failed capture must keep the note and retry into it -------------
     const { CaptureSession: Session } = await import('./captureSession.ts')
     Session.forceFailure = 'no-permission'
+    if (session) session.flash.lastBounds = null
     await settle('screen capture #6')
     await session?.capture('screen')
     await wait(1500)
 
     const failedBar = await waitFor('capture')
     check('failure: the bar appeared anyway', Boolean(failedBar))
+    // Nothing was taken, so there is nothing to outline.
+    check('outline: none when the capture failed', session?.flash.lastBounds === null, JSON.stringify(session?.flash.lastBounds))
     if (failedBar) {
       const shown = await failedBar.webContents.executeJavaScript('document.body.innerText')
       check('failure: it explains what happened', /Screen Recording is off/i.test(shown), '')
