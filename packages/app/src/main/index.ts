@@ -234,6 +234,13 @@ void app.whenReady().then(() => {
   setInterval(() => void syncAppleShortcut(), 3000)
 })
 
+// A menu-bar app has no main window, so closing the last one — the Catalogue,
+// About — must not quit it. Electron's default is to quit when every window has
+// closed. This line was once lost to a patch that rewrote the rest of the file,
+// and the app quit whenever the Catalogue was closed before any capture; it is
+// now guarded by tests/app-lifecycle.test.ts.
+app.on('window-all-closed', () => {})
+
 app.on('will-quit', () => hotkeys?.dispose())
 
 /**
