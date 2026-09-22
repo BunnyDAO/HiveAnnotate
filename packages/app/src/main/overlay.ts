@@ -8,6 +8,10 @@ import { helperPath } from './helper.ts'
 const run = promisify(execFile)
 const here = fileURLToPath(new URL('.', import.meta.url))
 
+/** Wide enough for every hint on one row, including the preview shortcut. */
+const BAR_WIDTH = 1000
+const BAR_HEIGHT = 320
+
 interface HostApp {
   bundleId: string
   app: string
@@ -38,10 +42,10 @@ export class Overlay {
     this.window = new BrowserWindow({
       // Wide enough for every hint on one row now they are written as words
       // ("Shift + Enter") rather than glyphs; at 780 the last one wrapped.
-      width: 900,
+      width: BAR_WIDTH,
       // Room for the failure state, which adds an explanation and actions.
-      height: 320,
-      x: Math.round((width - 900) / 2),
+      height: BAR_HEIGHT,
+      x: Math.round((width - BAR_WIDTH) / 2),
       y: Math.round(height - 380),
       show: false,
       frame: false,
@@ -98,6 +102,7 @@ export class Overlay {
   async show(): Promise<void> {
     if (!this.host) this.host = await this.readHost()
     const win = this.ensure()
+    win.setBounds(this.barBounds(screen.getDisplayMatching(win.getBounds()).workArea))
     win.showInactive()
     win.focus()
   }
@@ -111,6 +116,39 @@ export class Overlay {
     } catch {
       // Losing the handback is a papercut, not a failure worth surfacing:
       // the capture is already filed.
+    }
+  }
+
+  /**
+   * Grows the panel to show the capture large, or shrinks it back to the bar.
+   * The same window, so it stays key: the note keeps the cursor while you look.
+   */
+  setPreviewing(on: boolean): void {
+    const win = this.window
+    if (!win || win.isDestroyed()) return
+    const area = screen.getDisplayMatching(win.getBounds()).workArea
+
+    if (on) {
+      const width = Math.round(area.width * 0.86)
+      const height = Math.round(area.height * 0.9)
+      win.setBounds({
+        x: area.x + Math.round((area.width - width) / 2),
+        y: area.y + Math.round((area.height - height) / 2),
+        width,
+        height,
+      })
+    } else {
+      win.setBounds(this.barBounds(area))
+    }
+  }
+
+  /** Where the bar sits normally: centred, near the bottom of the work area. */
+  private barBounds(area: Electron.Rectangle): Electron.Rectangle {
+    return {
+      x: area.x + Math.round((area.width - BAR_WIDTH) / 2),
+      y: area.y + area.height - (BAR_HEIGHT + 60),
+      width: BAR_WIDTH,
+      height: BAR_HEIGHT,
     }
   }
 

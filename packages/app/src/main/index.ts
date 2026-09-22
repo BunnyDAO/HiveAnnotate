@@ -1,4 +1,4 @@
-import { app, Tray, Menu, BrowserWindow, nativeImage, protocol } from 'electron'
+import { app, Tray, Menu, BrowserWindow, nativeImage, protocol, shell } from 'electron'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { APP_NAME, BUNDLE_ID } from '@hiveannotate/core'
@@ -7,6 +7,7 @@ import { defaultBundleRoot, formatAccelerator } from '@hiveannotate/core'
 import { startHotkeys } from './hotkeys.ts'
 import { CaptureSession } from './captureSession.ts'
 import { Catalogue, registerCaptureProtocol } from './catalogue.ts'
+import { routeLinksToBrowser } from './externalLinks.ts'
 import { buildAdapterRegistry } from './handoff.ts'
 import type { HotkeyService } from './hotkeys.ts'
 
@@ -38,8 +39,8 @@ function showAbout(): void {
   }
 
   aboutWindow = new BrowserWindow({
-    width: 380,
-    height: 260,
+    width: 420,
+    height: 380,
     resizable: false,
     title: APP_NAME,
     show: false,
@@ -50,6 +51,7 @@ function showAbout(): void {
     },
   })
 
+  routeLinksToBrowser(aboutWindow)
   aboutWindow.once('ready-to-show', () => aboutWindow?.show())
   aboutWindow.on('closed', () => { aboutWindow = null })
 
@@ -71,8 +73,8 @@ function renderTrayMenu(): void {
 
   const chordItems = (hotkeys?.registrations ?? []).map(({ chord, registered }) => ({
     label: registered
-      ? `${chord.label}   ${formatAccelerator(chord.accelerator)}`
-      : `${chord.label}   — ${formatAccelerator(chord.accelerator)} is taken by another app`,
+      ? `${chord.label}   ${formatAccelerator(chord.accelerator, process.platform)}`
+      : `${chord.label}   — ${formatAccelerator(chord.accelerator, process.platform)} is taken by another app`,
     enabled: false,
   }))
 
@@ -93,7 +95,9 @@ function renderTrayMenu(): void {
     ...chordItems,
     { type: 'separator' },
     { label: 'Open Catalogue', click: () => catalogue?.open() },
-    { label: 'About', click: showAbout },
+    { label: 'About HiveAnnotate', click: showAbout },
+    // Free, and made by HiveOp: one quiet way in, not an advert.
+    { label: 'Made by HiveOp — hiveop.io', click: () => void shell.openExternal('https://hiveop.io') },
     { type: 'separator' },
     { label: 'Quit', role: 'quit' },
   ]
@@ -166,7 +170,38 @@ if (process.argv.includes('--self-test')) {
   void app.whenReady().then(async () => {
     const { BundleStore, defaultBundleRoot } = await import('@hiveannotate/core')
     const wait = (ms: number) => new Promise((r) => setTimeout(r, ms))
-    const visible = () => BrowserWindow.getAllWindows().find((w) => w.isVisible())
+    /**
+     * The visible window for one surface, polled until it appears. Steps used
+     * to take "whatever window is visible" after a fixed sleep; when a lookup
+     * came up empty at the wrong instant the step silently skipped, a capture
+     * bar stayed open, and the next step typed into it. Found four times.
+     */
+    const waitFor = async (surface: 'capture' | 'region' | 'catalogue', timeoutMs = 4000) => {
+      const deadline = Date.now() + timeoutMs
+      while (Date.now() < deadline) {
+        const w = BrowserWindow.getAllWindows().find(
+          (x) => x.isVisible() && x.webContents.getURL().includes(`#${surface}`),
+        )
+        if (w) return w
+        await wait(100)
+      }
+      return undefined
+    }
+
+    const openOverlay = () =>
+      BrowserWindow.getAllWindows().find((x) => x.isVisible() && /#(capture|region)$/.test(x.webContents.getURL()))
+
+    /** Before each capture: nothing may still be open from the step before. */
+    const settle = async (before: string) => {
+      for (let i = 0; i < 40 && openOverlay(); i++) await wait(100)
+      const leftover = openOverlay()
+      if (leftover) {
+        console.log(`WARN  a window was still open before "${before}" — closing it`)
+        leftover.webContents.sendInputEvent({ type: 'keyDown', keyCode: 'Escape' })
+        leftover.webContents.sendInputEvent({ type: 'keyUp', keyCode: 'Escape' })
+        await wait(800)
+      }
+    }
 
     const type = (win: BrowserWindow, keys: string[]): void => {
       for (const key of keys) {
@@ -185,9 +220,10 @@ if (process.argv.includes('--self-test')) {
     await wait(1200)
 
     // --- full-screen capture through the bar -------------------------------
+    await settle('screen capture #1')
     await session?.capture('screen')
     await wait(1500)
-    const bar = visible()
+    const bar = await waitFor('capture')
     check('screen: bar appeared', Boolean(bar))
     if (bar) {
       // Nothing is active yet, so this capture starts a new bundle — which
@@ -207,9 +243,10 @@ if (process.argv.includes('--self-test')) {
     }
 
     // --- region capture through the picker, then the bar -------------------
+    await settle('region capture #2')
     await session?.capture('region')
     await wait(1500)
-    const picker = visible()
+    const picker = await waitFor('region')
     check('region: picker appeared', Boolean(picker))
     if (picker) {
       // Mark the middle cell, descend, then mark right-of-middle: the
@@ -219,7 +256,7 @@ if (process.argv.includes('--self-test')) {
       type(picker, ['Return'])
       await wait(1800)
 
-      const regionBar = visible()
+      const regionBar = await waitFor('capture')
       check('region: bar appeared after picking', Boolean(regionBar))
       if (regionBar) {
         type(regionBar, [...'console output'])
@@ -232,9 +269,10 @@ if (process.argv.includes('--self-test')) {
     // --- the picker: letters toggle, and every hint is in plain words ------
     {
       const GLYPHS = /[⌃⌥⇧⌘⏎↩⎋⇥⌫␣]/
+      await settle('region capture #3')
       await session?.capture('region')
       await wait(1500)
-      const picker = visible()
+      const picker = await waitFor('region')
       if (picker) {
         type(picker, ['q', 'e', 'e'])
         await wait(400)
@@ -250,9 +288,10 @@ if (process.argv.includes('--self-test')) {
         check('picker: pressing a letter again unselects it', false, 'picker did not appear')
       }
 
+      await settle('screen capture #4')
       await session?.capture('screen')
       await wait(1500)
-      const wordsBar = visible()
+      const wordsBar = await waitFor('capture')
       if (wordsBar) {
         const text: string = await wordsBar.webContents.executeJavaScript('document.body.innerText')
         check('capture bar: hints are words, not symbols', !GLYPHS.test(text) && /Shift \+ Enter/.test(text),
@@ -263,15 +302,16 @@ if (process.argv.includes('--self-test')) {
     }
 
     // --- accumulate: q then e is the whole top row (hive-v1-17) -----------
+    await settle('region capture #5')
     await session?.capture('region')
     await wait(1500)
-    const widePicker = visible()
+    const widePicker = await waitFor('region')
     if (widePicker) {
       type(widePicker, ['q', 'e'])
       await wait(300)
       type(widePicker, ['Return'])
       await wait(1800)
-      const wideBar = visible()
+      const wideBar = await waitFor('capture')
       if (wideBar) {
         type(wideBar, [...'top bar'])
         await wait(300)
@@ -283,10 +323,11 @@ if (process.argv.includes('--self-test')) {
     // --- a failed capture must keep the note and retry into it -------------
     const { CaptureSession: Session } = await import('./captureSession.ts')
     Session.forceFailure = 'no-permission'
+    await settle('screen capture #6')
     await session?.capture('screen')
     await wait(1500)
 
-    const failedBar = visible()
+    const failedBar = await waitFor('capture')
     check('failure: the bar appeared anyway', Boolean(failedBar))
     if (failedBar) {
       const shown = await failedBar.webContents.executeJavaScript('document.body.innerText')
@@ -302,7 +343,7 @@ if (process.argv.includes('--self-test')) {
       type(failedBar, ['Return'])
       await wait(2000)
 
-      const retried = visible()
+      const retried = await waitFor('capture')
       const noteAfter = retried
         ? await retried.webContents.executeJavaScript('document.querySelector("#note")?.value ?? ""')
         : ''
@@ -448,14 +489,14 @@ if (process.argv.includes('--self-test')) {
     {
       const regs = hotkeys?.registrations ?? []
       const find = (intent: string) => regs.find((r) => r.chord.intent === intent)
-      check('chords: region picker is on Option+1', find('region')?.chord.accelerator === 'Alt+1' && Boolean(find('region')?.registered), '')
-      check('chords: Option+4 opens the Catalogue', find('catalogue')?.chord.accelerator === 'Alt+4' && Boolean(find('catalogue')?.registered), '')
+      check('chords: region picker is on Cmd/Ctrl + Shift + 1', find('region')?.chord.accelerator === 'CommandOrControl+Shift+1' && Boolean(find('region')?.registered), '')
+      check('chords: Cmd/Ctrl + Shift + 0 opens the Catalogue', find('catalogue')?.chord.accelerator === 'CommandOrControl+Shift+0' && Boolean(find('catalogue')?.registered), '')
       const labels = trayMenuLabels()
       check(
-        'tray: shortcuts read as "Option + 1", never Alt or a symbol',
-        labels.some((l) => l.includes('Option + 1')) &&
-          !labels.some((l) => /\bAlt\b|[⌃⌥⇧⌘↩⎋⇥⌫␣]/.test(l)),
-        labels.filter((l) => /Option|Alt|⌥/.test(l)).join(' | '),
+        'tray: shortcuts read in this platform\'s words, never Alt or a symbol',
+        labels.some((l) => l.includes(process.platform === 'darwin' ? 'Cmd + Shift + 1' : 'Ctrl + Shift + 1')) &&
+          !labels.some((l) => /\bAlt\b|Option|[⌃⌥⇧⌘↩⎋⇥⌫␣]/.test(l)),
+        labels.filter((l) => /Cmd|Ctrl|Option|Alt|⌥/.test(l)).join(' | '),
       )
     }
 
@@ -473,6 +514,7 @@ if (process.argv.includes('--self-test')) {
 
       // 1. Accept the name taken from the note.
       let before = await chipStore.listBundles()
+      await settle('screen capture #7')
       await session?.capture('screen')
       await wait(1500)
       let w = bar()
@@ -500,6 +542,7 @@ if (process.argv.includes('--self-test')) {
 
       // 2. Type a different name.
       before = await chipStore.listBundles()
+      await settle('screen capture #8')
       await session?.capture('screen')
       await wait(1500)
       w = bar()
@@ -523,6 +566,7 @@ if (process.argv.includes('--self-test')) {
 
       // 3. The name is required.
       before = await chipStore.listBundles()
+      await settle('screen capture #9')
       await session?.capture('screen')
       await wait(1500)
       w = bar()
@@ -545,6 +589,46 @@ if (process.argv.includes('--self-test')) {
         after.length === before.length && /Name the new bundle/.test(refusal),
         `bundles ${before.length} -> ${after.length}`,
       )
+    }
+
+    // --- preview the capture before committing it ----------------------------
+    {
+      const barWin = () =>
+        BrowserWindow.getAllWindows().find((w) => w.isVisible() && w.webContents.getURL().includes('#capture'))
+      const cmd = (w: BrowserWindow, key: string) => {
+        w.webContents.sendInputEvent({ type: 'keyDown', keyCode: key, modifiers: ['meta'] })
+        w.webContents.sendInputEvent({ type: 'keyUp', keyCode: key, modifiers: ['meta'] })
+      }
+      const beforeCount = (await new BundleStore(defaultBundleRoot()).listBundles()).reduce((n, b) => n + b.captureCount, 0)
+      await settle('screen capture #10')
+      await session?.capture('screen')
+      await wait(1500)
+      const w = barWin()
+      if (w) {
+        const small = w.getBounds()
+        cmd(w, 'p')
+        await wait(900)
+        const big = w.getBounds()
+        const shown = await w.webContents.executeJavaScript(`(async () => {
+          const img = document.querySelector('img[alt="The capture you are about to save"]')
+          for (let i = 0; i < 30 && img && !(img.complete && img.naturalWidth); i++) await new Promise(r => setTimeout(r, 100))
+          return img ? { natural: img.naturalWidth, shown: Math.round(img.getBoundingClientRect().width) } : null
+        })()`)
+        check('preview: Cmd + P shows the capture large', Boolean(shown && shown.natural > 0 && big.width > small.width * 1.5),
+          shown ? `window ${small.width}→${big.width}px, image ${shown.shown}px of ${shown.natural}` : 'no preview image')
+
+        type(w, ['Escape'])
+        await wait(700)
+        const stillUp = barWin()
+        check('preview: Esc closes the preview and keeps the capture', Boolean(stillUp) && (stillUp?.getBounds().width ?? 0) < big.width,
+          stillUp ? `back to ${stillUp.getBounds().width}px` : 'the bar disappeared — capture thrown away')
+        if (stillUp) {
+          type(stillUp, ['Escape'])
+          await wait(800)
+        }
+      }
+      const afterCount = (await new BundleStore(defaultBundleRoot()).listBundles()).reduce((n, b) => n + b.captureCount, 0)
+      check('preview: looking at a capture never saves it', afterCount === beforeCount, `${beforeCount} → ${afterCount}`)
     }
 
     // --- a bundle marked handled can be reopened ----------------------------
@@ -716,6 +800,14 @@ if (snapIndex !== -1) {
     const shoot = pf(ef)
     const wait = (ms: number) => new Promise((r) => setTimeout(r, ms))
     await wait(1200)
+    if (surface === 'about') {
+      showAbout()
+      await wait(2000)
+      await shoot('screencapture', ['-x', '/tmp/hive-snap-about.png'])
+      console.log('SNAP: /tmp/hive-snap-about.png')
+      app.quit()
+      return
+    }
     if (surface === 'catalogue') {
       catalogue?.open()
       await wait(2500)
@@ -730,6 +822,18 @@ if (snapIndex !== -1) {
     }
     await session?.capture(surface === 'picker' ? 'region' : 'screen')
     await wait(1500)
+    if (surface === 'preview') {
+      const w = BrowserWindow.getAllWindows().find((x) => x.isVisible() && x.webContents.getURL().includes('#capture'))
+      w?.webContents.sendInputEvent({ type: 'keyDown', keyCode: 'p', modifiers: ['meta'] })
+      w?.webContents.sendInputEvent({ type: 'keyUp', keyCode: 'p', modifiers: ['meta'] })
+      await wait(900)
+    }
+    if (surface === 'preview') {
+      const w = BrowserWindow.getAllWindows().find((x) => x.isVisible() && x.webContents.getURL().includes('#capture'))
+      w?.webContents.sendInputEvent({ type: 'keyDown', keyCode: 'p', modifiers: ['meta'] })
+      w?.webContents.sendInputEvent({ type: 'keyUp', keyCode: 'p', modifiers: ['meta'] })
+      await wait(900)
+    }
     if (surface === 'newbundle') {
       const w = BrowserWindow.getAllWindows().find((x) => x.isVisible() && x.webContents.getURL().includes('#capture'))
       for (const ch of 'checkout total is wrong') {

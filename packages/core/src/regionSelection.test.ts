@@ -209,3 +209,20 @@ describe('the rectangle handed to screencapture', () => {
     expect(sel.rect).toEqual({ x: 1800, y: -200, width: 480, height: 300 })
   })
 })
+
+describe('zoom depth', () => {
+  it('starts at zero', () => {
+    expect(new RegionSelection(SCREEN).depth).toBe(0)
+  })
+
+  // Found in a diagnostic trace: selecting squares used to raise the depth.
+  it('does not change when squares are selected or unselected', () => {
+    expect(press('q', 'e', 'e').depth).toBe(0)
+  })
+
+  it('goes up one per zoom, and back down with undo', () => {
+    const zoomed = press('s', '_', 'd', '_')
+    expect(zoomed.depth).toBe(2)
+    expect(zoomed.back().depth).toBe(1)
+  })
+})

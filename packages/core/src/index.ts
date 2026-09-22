@@ -32,6 +32,7 @@ export {
 export type { HandoffAdapter, HandoffTarget } from './handoff.ts'
 export {
   DEFAULT_CHORDS,
+  MACOS_RESERVED_SCREENSHOT_DIGITS,
   registerChords,
   unavailableChords,
 } from './hotkeys.ts'
@@ -46,8 +47,10 @@ export type {
   CaptureTarget,
   MacCaptureBackendOptions,
 } from './macos/captureBackend.ts'
+export { isAllowedExternal } from './allowedLinks.ts'
 export { explainFailure } from './explainFailure.ts'
-export { formatAccelerator } from './formatAccelerator.ts'
+export { formatAccelerator, isMac, primaryModifierName } from './formatAccelerator.ts'
+export type { Platform } from './formatAccelerator.ts'
 export type { FailureExplanation } from './explainFailure.ts'
 export { GRID_KEYS, RegionSelection } from './regionSelection.ts'
 export type { Rect } from './regionSelection.ts'

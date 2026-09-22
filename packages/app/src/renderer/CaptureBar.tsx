@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from 'react'
 
 import type { FailurePayload, PendingView } from './bridge.ts'
 import { filingChoices } from '@hiveannotate/core/filingChoices'
+import { isMac, primaryModifierName } from '@hiveannotate/core/formatAccelerator'
 import type { FilingTarget } from '@hiveannotate/core/filingChoices'
 
 const ground = theme.surface
@@ -13,6 +14,10 @@ const muted = theme.muted
 const dim = theme.dim
 /** A selected filing chip: a quiet tint of the accent rather than a solid fill. */
 const CHIP_ON_BG = accentAlpha(0.12)
+/** Cmd on a Mac, Ctrl on Windows and Linux — for the keys and for the hints. */
+const PLATFORM = window.hive?.platform ?? 'darwin'
+const MOD = primaryModifierName(PLATFORM)
+const modHeld = (e: { metaKey: boolean; ctrlKey: boolean }) => (isMac(PLATFORM) ? e.metaKey : e.ctrlKey)
 const mono = fonts.mono
 
 function Key({ children }: { children: React.ReactNode }): React.JSX.Element {
@@ -47,12 +52,15 @@ export function CaptureBar(): React.JSX.Element {
   const [bundleName, setBundleName] = useState('')
   const nameField = useRef<HTMLInputElement>(null)
   const [error, setError] = useState<string | null>(null)
+  /** The capture shown large, so it can be checked before Enter commits it. */
+  const [previewing, setPreviewing] = useState(false)
   const [failure, setFailure] = useState<FailurePayload | null>(null)
   const field = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
     window.hive?.onPending?.((incoming) => {
       setView(incoming)
+      setPreviewing(false)
       setFailure(null)
       setError(null)
       // A retry keeps the note: a failed capture costs the image, never the
@@ -67,7 +75,16 @@ export function CaptureBar(): React.JSX.Element {
     })
 
     window.hive?.onFailed?.((payload) => {
-      // The note is deliberately untouched here — rule two.
+      // A retry keeps the note — rule two: a failed capture costs the image,
+      // never the thought. But a *new* capture that fails at once must start
+      // blank, or it inherits the previous capture's note (it did: the bar
+      // window is reused between captures).
+      if (!payload.isRetry) {
+        setNote('')
+        setSelected(0)
+        setBundleName('')
+      }
+      setPreviewing(false)
       setFailure(payload)
       setError(null)
       requestAnimationFrame(() => field.current?.focus())
@@ -122,7 +139,47 @@ export function CaptureBar(): React.JSX.Element {
     }
   }
 
+  function togglePreview(): void {
+    if (!view?.imageDataUrl) return
+    const next = !previewing
+    setPreviewing(next)
+    void window.hive?.preview?.(next)
+    // Keep the cursor in the note: look and type at the same time.
+    requestAnimationFrame(() => field.current?.focus())
+  }
+
+  // Cmd/Ctrl + P and Esc-while-previewing must work wherever focus is in the
+  // bar — after clicking the thumbnail, say — not only inside the note. The
+  // note's own handler runs first and marks what it handled, so nothing fires
+  // twice.
+  useEffect(() => {
+    const onWindowKey = (e: KeyboardEvent) => {
+      if (e.defaultPrevented) return
+      if (modHeld(e) && e.key.toLowerCase() === 'p') {
+        e.preventDefault()
+        togglePreview()
+      } else if (e.key === 'Escape' && previewing) {
+        e.preventDefault()
+        togglePreview()
+      }
+    }
+    window.addEventListener('keydown', onWindowKey)
+    return () => window.removeEventListener('keydown', onWindowKey)
+  })
+
   function onKeyDown(e: React.KeyboardEvent<HTMLInputElement>): void {
+    if (modHeld(e) && e.key.toLowerCase() === 'p') {
+      e.preventDefault()
+      togglePreview()
+      return
+    }
+    // While previewing, Esc closes the preview. It must never be the key that
+    // throws the capture away just because the user was looking at it.
+    if (e.key === 'Escape' && previewing) {
+      e.preventDefault()
+      togglePreview()
+      return
+    }
     if (e.key === 'Escape') {
       e.preventDefault()
       // Even a blocking failure can be dismissed deliberately — it just never
@@ -146,13 +203,13 @@ export function CaptureBar(): React.JSX.Element {
     if (e.key === 'Enter') {
       e.preventDefault()
       // Shift + Enter stays a shortcut for "new bundle", whatever is selected.
-      void commit(e.metaKey, e.shiftKey ? { kind: 'new' } : current.target)
+      void commit(modHeld(e), e.shiftKey ? { kind: 'new' } : current.target)
     }
   }
 
   const staleNotice = view?.destination.kind === 'new' && view.destination.reason === 'stale'
 
-  return (
+  const panel = (
     <div
       style={{
         boxSizing: 'border-box',
@@ -179,8 +236,21 @@ export function CaptureBar(): React.JSX.Element {
           </span>
         </span>
         {view && !failure && (
-          <span style={{ fontFamily: mono, fontSize: 11, color: dim }}>
-            {`${view.kind}${view.app ? ` · ${view.app}` : ''} · ${view.width}×${view.height}`}
+          <span style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            <span style={{ fontFamily: mono, fontSize: 11, color: dim }}>
+              {`${view.kind}${view.app ? ` · ${view.app}` : ''} · ${view.width}×${view.height}`}
+            </span>
+            {view.imageDataUrl && !previewing && (
+              <button
+                type="button"
+                onClick={togglePreview}
+                title={`Preview (${MOD} + P)`}
+                aria-label={`Preview the capture (${MOD} + P)`}
+                style={{ padding: 0, border: `1px solid ${theme.borderStrong}`, borderRadius: 5, background: theme.surfaceRaised, cursor: 'zoom-in', lineHeight: 0 }}
+              >
+                <img src={view.imageDataUrl} alt="" style={{ width: 72, height: 44, objectFit: 'cover', objectPosition: 'top left', borderRadius: 4 }} />
+              </button>
+            )}
           </span>
         )}
       </div>
@@ -351,12 +421,41 @@ export function CaptureBar(): React.JSX.Element {
       ) : (
         <div style={{ borderTop: `1px solid ${theme.border}`, paddingTop: 13, display: 'flex', alignItems: 'center', gap: 16, flexWrap: 'wrap' }}>
         <span style={{ display: 'inline-flex', alignItems: 'center', gap: 7 }}><Key>Enter</Key><span style={{ fontSize: 12, color: muted }}>save</span></span>
-        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 7 }}><Key>Shift + Enter</Key><span style={{ fontSize: 12, color: muted }}>save as a new bundle</span></span>
+        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 7 }}><Key>Shift + Enter</Key><span style={{ fontSize: 12, color: muted }}>new bundle</span></span>
         <span style={{ display: 'inline-flex', alignItems: 'center', gap: 7 }}><Key>Tab</Key><span style={{ fontSize: 12, color: muted }}>choose bundle</span></span>
-        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 7 }}><Key>Cmd + Enter</Key><span style={{ fontSize: 12, color: muted }}>save + copy link</span></span>
+        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 7 }}><Key>{`${MOD} + Enter`}</Key><span style={{ fontSize: 12, color: muted }}>save + copy link</span></span>
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 7 }}><Key>{`${MOD} + P`}</Key><span style={{ fontSize: 12, color: muted }}>{previewing ? 'close preview' : 'preview'}</span></span>
         <span style={{ display: 'inline-flex', alignItems: 'center', gap: 7 }}><Key>Esc</Key><span style={{ fontSize: 12, color: muted }}>throw away</span></span>
         </div>
       )}
+    </div>
+  )
+
+  if (!previewing || !view?.imageDataUrl) return panel
+
+  return (
+    <div style={{ height: '100vh', boxSizing: 'border-box', display: 'flex', flexDirection: 'column', gap: 12 }}>
+      <div
+        style={{
+          flex: 1,
+          minHeight: 0,
+          borderRadius: 14,
+          background: theme.backdrop,
+          border: `1px solid ${border}`,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          padding: 12,
+          boxSizing: 'border-box',
+        }}
+      >
+        <img
+          src={view.imageDataUrl}
+          alt="The capture you are about to save"
+          style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain', borderRadius: 6 }}
+        />
+      </div>
+      {panel}
     </div>
   )
 }

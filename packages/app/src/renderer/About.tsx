@@ -1,6 +1,13 @@
-import { theme, fonts, accentAlpha } from './theme.ts'
 import './bridge.ts'
+import { theme, fonts } from './theme.ts'
+import mark from './assets/mark.png'
 
+/**
+ * HiveAnnotate is free, and made by HiveOp. The branding says "made by", not
+ * "buy": a utility that advertises at you gets uninstalled. The one promise
+ * that matters most to someone letting an app see their screen is stated
+ * plainly, because it is true — nothing leaves the Mac.
+ */
 export function About(): React.JSX.Element {
   const info = window.hive
 
@@ -9,18 +16,40 @@ export function About(): React.JSX.Element {
       style={{
         margin: 0,
         height: '100vh',
+        boxSizing: 'border-box',
         display: 'flex',
         flexDirection: 'column',
+        alignItems: 'center',
         justifyContent: 'center',
-        gap: 8,
-        padding: '0 28px',
-        fontFamily: 'system-ui, sans-serif',
+        textAlign: 'center',
+        gap: 10,
+        padding: '28px 32px',
+        fontFamily: fonts.sans,
         background: theme.background,
         color: theme.text,
       }}
     >
-      <h1 style={{ margin: 0, fontSize: 20 }}>{info?.appName ?? 'HiveAnnotate'}</h1>
-      <p style={{ margin: 0, fontSize: 12, color: theme.muted }}>{info?.bundleId ?? 'bundle id unavailable'}</p>
+      <img src={mark} alt="" width={72} height={72} />
+      <h1 style={{ margin: '6px 0 0', fontSize: 22, fontWeight: 700, letterSpacing: '-.01em' }}>
+        {info?.appName ?? 'HiveAnnotate'}
+      </h1>
+      <a
+        href="https://hiveop.io"
+        target="_blank"
+        rel="noreferrer"
+        style={{ fontSize: 13, color: theme.accent, textDecoration: 'none' }}
+      >
+        by HiveOp
+      </a>
+      <p style={{ margin: '8px 0 0', fontSize: 13, lineHeight: 1.55, color: theme.textBody, maxWidth: 320 }}>
+        Keyboard screenshots with notes, ready to hand to any AI agent.
+      </p>
+      <p style={{ margin: 0, fontSize: 12, color: theme.muted }}>
+        Your screenshots never leave your Mac.
+      </p>
+      <p style={{ margin: '10px 0 0', fontFamily: fonts.mono, fontSize: 10, color: theme.dim }}>
+        {info?.bundleId ?? ''}
+      </p>
     </main>
   )
 }

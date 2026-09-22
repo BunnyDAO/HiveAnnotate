@@ -10,7 +10,7 @@
     "dev": "npm run dev -w @hiveannotate/app",
     "build": "npm run build -w @hiveannotate/app",
     "pack": "npm run pack -w @hiveannotate/app",
-    "icons": "node tools/make-tray-icon.mjs",
+    "icons": "electron packages/app/brand/render.mjs",
     "test": "vitest run",
     "test:watch": "vitest",
     "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p packages/core/tsconfig.json --noEmit && tsc -p packages/mcp/tsconfig.json --noEmit && tsc -p packages/app/tsconfig.json --noEmit",

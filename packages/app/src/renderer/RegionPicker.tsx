@@ -9,7 +9,7 @@ const SCRIM = theme.scrim
 /** The picker's keys, in the order they are usually reached for. */
 const HINTS: [string, string][] = [
   ['Q W E …', 'select a square (again to unselect)'],
-  ['Enter', 'capture'],
+  ['Enter', 'capture (whole screen if none selected)'],
   ['Space', 'zoom in'],
   ['Delete', 'undo'],
   ['Shift + arrows', 'nudge an edge'],

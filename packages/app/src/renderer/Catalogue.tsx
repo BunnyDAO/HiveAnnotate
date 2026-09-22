@@ -1,3 +1,6 @@
+import { formatAccelerator } from '@hiveannotate/core/formatAccelerator'
+import mark from './assets/mark.png'
+import { DEFAULT_CHORDS } from '@hiveannotate/core/hotkeys'
 import { theme, fonts, accentAlpha } from './theme.ts'
 import { useCallback, useEffect, useState } from 'react'
 import type { BundleSummary, BundleView } from './bridge.ts'
@@ -107,7 +110,7 @@ export function Catalogue(): React.JSX.Element {
         <div style={{ flex: 1, overflowY: 'auto', padding: '0 10px 10px', display: 'flex', flexDirection: 'column', gap: 4 }}>
           {bundles.length === 0 && (
             <p style={{ padding: '8px 12px', fontSize: 12, lineHeight: 1.6, color: dim }}>
-              Nothing captured yet. Press Option + 1 to pick part of the screen.
+              Nothing captured yet. Press {formatAccelerator(DEFAULT_CHORDS[0]!.accelerator, window.hive?.platform ?? 'darwin')} to pick part of the screen.
             </p>
           )}
           {bundles.map((b) => {
@@ -142,6 +145,16 @@ export function Catalogue(): React.JSX.Element {
             )
           })}
         </div>
+
+        <footer style={{ padding: '12px 16px', borderTop: `1px solid ${line}`, display: 'flex', alignItems: 'center', gap: 8 }}>
+          <img src={mark} alt="" width={16} height={16} />
+          <span style={{ fontSize: 11, color: dim }}>
+            HiveAnnotate{' '}
+            <a href="https://hiveop.io" target="_blank" rel="noreferrer" style={{ color: muted, textDecoration: 'none' }}>
+              by HiveOp
+            </a>
+          </span>
+        </footer>
       </aside>
 
       <main style={{ flex: 1, minWidth: 0, padding: '38px 30px 30px', overflowY: 'auto' }}>

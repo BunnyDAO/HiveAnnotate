@@ -119,6 +119,8 @@ export class CaptureSession {
       console.log(`[capture] failed: ${begun.reason}${begun.detail ? ` — ${begun.detail}` : ''}`)
       await this.overlay.show()
       await this.overlay.send('capture:failed', {
+        // A new capture that fails starts blank; only a retry keeps the note.
+        isRetry,
         reason: begun.reason,
         explanation: explainFailure(begun.reason, begun.detail),
       })
@@ -132,6 +134,9 @@ export class CaptureSession {
     await this.overlay.show()
     await this.overlay.send('capture:pending', {
       isRetry,
+      // Not on disk yet — it is only written on Enter, which is what lets
+      // "throw away" leave nothing behind — so the preview comes from memory.
+      imageDataUrl: `data:image/png;base64,${Buffer.from(begun.pending.image).toString('base64')}`,
       kind: begun.pending.kind,
       app: this.overlay.hostApp(),
       width: begun.pending.width,
@@ -178,6 +183,11 @@ export class CaptureSession {
       await this.overlay.hide()
       console.log(`[capture] filed into ${bundle.id} (${bundle.captures.length} captures)`)
       return { id: bundle.id }
+    })
+
+    ipcMain.handle('capture:preview', async (_e, on: boolean) => {
+      this.overlay.setPreviewing(on)
+      return null
     })
 
     ipcMain.handle('capture:retry', async () => {

@@ -2,6 +2,7 @@ import { app, BrowserWindow, ipcMain, protocol, net } from 'electron'
 import { join, normalize, sep } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { fileURLToPath } from 'node:url'
+import { routeLinksToBrowser } from './externalLinks.ts'
 import {
   AdapterRegistry,
   BundleStore,
@@ -90,6 +91,7 @@ export class Catalogue {
       },
     })
 
+    routeLinksToBrowser(this.window)
     this.window.once('ready-to-show', () => this.window?.show())
     this.window.on('closed', () => { this.window = null })
 

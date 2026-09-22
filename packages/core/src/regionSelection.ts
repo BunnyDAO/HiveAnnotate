@@ -37,6 +37,8 @@ interface State {
   marked: number[]
   /** Set by a nudge; cleared by the next mark, which redefines the box. */
   override: Rect | null
+  /** How many times the picker has zoomed in (Space). Marks do not count. */
+  depth: number
 }
 
 export class RegionSelection {
@@ -44,7 +46,7 @@ export class RegionSelection {
   private readonly history: State[]
 
   constructor(bounds: Rect, state?: State, history: State[] = []) {
-    this.state = state ?? { grid: bounds, marked: [], override: null }
+    this.state = state ?? { grid: bounds, marked: [], override: null, depth: 0 }
     this.history = history
   }
 
@@ -62,9 +64,13 @@ export class RegionSelection {
     return { x, y, width: right - x, height: bottom - y }
   }
 
-  /** How many times the picker has descended. */
+  /**
+   * How many times the picker has zoomed in. It used to count every state in
+   * the history that had a mark, so it went up with each letter pressed —
+   * found in a diagnostic trace, where two presses of E read as depth 2.
+   */
   get depth(): number {
-    return this.history.filter((s) => s.marked.length > 0).length
+    return this.state.depth
   }
 
   /** The nine cells of the current grid, in key order. */
@@ -91,7 +97,7 @@ export class RegionSelection {
       : [...this.state.marked, index]
 
     // Any change of marks redefines the box, so a nudge that came before is spent.
-    return this.push({ grid: this.state.grid, marked, override: null })
+    return this.push({ grid: this.state.grid, marked, override: null, depth: this.state.depth })
   }
 
   /** ␣ — the current box becomes the new grid; the marks clear. */
@@ -99,7 +105,7 @@ export class RegionSelection {
     if (this.state.marked.length === 0 && !this.state.override) return this
     const next = this.rect
     if (next.width < MIN_SIDE * COLUMNS || next.height < MIN_SIDE * ROWS) return this
-    return this.push({ grid: next, marked: [], override: null })
+    return this.push({ grid: next, marked: [], override: null, depth: this.state.depth + 1 })
   }
 
   /** ⌫ — undo exactly one key, whether it was a mark or a descend. */

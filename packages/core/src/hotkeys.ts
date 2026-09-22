@@ -1,14 +1,20 @@
 /**
  * The chords, in one place.
  *
- * The region picker has the easiest chord. It started on ⌥3, but in real use
- * it was the one reached for most — windows tend to be maximised, which makes
- * a window capture nearly a full-screen one, so picking the part you mean is
- * what you actually want. Changed on the user's request after first use.
+ * `CommandOrControl` resolves to Cmd on macOS and Ctrl on Windows and Linux,
+ * so each platform gets its own convention without a second table.
  *
- * The number row is used deliberately: ⌥-digit produces rarely-typed symbols
- * (¡ ™ £ ¢), whereas ⌥-letter produces characters people do type, and a
- * global chord swallows them everywhere.
+ * Why Cmd/Ctrl + Shift + a digit:
+ * - Cmd + digit alone is taken by nearly every Mac app (tab switching in
+ *   iTerm2, Chrome, Safari, Slack); a global one would break "go to tab 1"
+ *   everywhere.
+ * - Cmd + Shift + digit is where Mac screenshots live. macOS reserves 3, 4, 5
+ *   and 6 for its own, so 1, 2 and 0 are used here.
+ * - Option + digit (the first choice) read as odd to a Mac user, and on some
+ *   layouts (German, Polish) it types characters like @ that people need.
+ *
+ * There is no whole-screen chord: the region picker opens with the whole
+ * screen selected, so its chord then Enter is a full-screen capture.
  */
 
 import type { CaptureTarget } from './macos/captureBackend.ts'
@@ -25,11 +31,17 @@ export interface Chord {
   label: string
 }
 
+/** Digits macOS keeps for its own screenshot shortcuts (with Cmd + Shift). */
+export const MACOS_RESERVED_SCREENSHOT_DIGITS = ['3', '4', '5', '6'] as const
+
 export const DEFAULT_CHORDS: readonly Chord[] = [
-  { intent: 'region', accelerator: 'Alt+1', label: 'Pick a region with the keyboard' },
-  { intent: 'screen', accelerator: 'Alt+2', label: 'Capture the whole screen' },
-  { intent: 'window', accelerator: 'Alt+3', label: 'Capture the focused window' },
-  { intent: 'catalogue', accelerator: 'Alt+4', label: 'Open or close the Catalogue' },
+  {
+    intent: 'region',
+    accelerator: 'CommandOrControl+Shift+1',
+    label: 'Pick a region (Enter right away for the whole screen)',
+  },
+  { intent: 'window', accelerator: 'CommandOrControl+Shift+2', label: 'Capture the window you are in' },
+  { intent: 'catalogue', accelerator: 'CommandOrControl+Shift+0', label: 'Open or close the Catalogue' },
 ] as const
 
 export interface ChordRegistration {

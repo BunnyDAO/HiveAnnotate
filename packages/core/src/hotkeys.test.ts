@@ -1,17 +1,17 @@
 import { describe, it, expect, vi } from 'vitest'
-import { DEFAULT_CHORDS, registerChords, unavailableChords } from './hotkeys.ts'
+import {
+  DEFAULT_CHORDS,
+  MACOS_RESERVED_SCREENSHOT_DIGITS,
+  registerChords,
+  unavailableChords,
+} from './hotkeys.ts'
 import type { ChordAction } from './hotkeys.ts'
 
 const accel = (intent: ChordAction) => DEFAULT_CHORDS.find((c) => c.intent === intent)?.accelerator
 
 describe('the chord table', () => {
-  it('covers region, screen, window and the Catalogue', () => {
-    expect(DEFAULT_CHORDS.map((c) => c.intent).sort()).toEqual([
-      'catalogue',
-      'region',
-      'screen',
-      'window',
-    ])
+  it('covers region, window and the Catalogue', () => {
+    expect(DEFAULT_CHORDS.map((c) => c.intent).sort()).toEqual(['catalogue', 'region', 'window'])
   })
 
   it('gives every chord a distinct accelerator', () => {
@@ -19,20 +19,31 @@ describe('the chord table', () => {
     expect(new Set(accelerators).size).toBe(accelerators.length)
   })
 
-  // The user reached for the region picker most in real use, so it has the
-  // easiest chord.
   it('puts the region picker on the easiest chord', () => {
-    expect(accel('region')).toBe('Alt+1')
+    expect(accel('region')).toBe('CommandOrControl+Shift+1')
   })
 
   it('has a chord that opens the Catalogue', () => {
-    expect(accel('catalogue')).toBe('Alt+4')
+    expect(accel('catalogue')).toBe('CommandOrControl+Shift+0')
   })
 
-  // ⌥-letter produces characters people type (ç, œ, ß); a global chord would
-  // swallow them in every app. ⌥-digit produces rarely-typed symbols.
-  it('uses only Option plus a digit, never Option plus a letter', () => {
-    for (const { accelerator } of DEFAULT_CHORDS) expect(accelerator).toMatch(/^Alt\+\d$/)
+  // Cmd on a Mac, Ctrl on Windows — one table, the platform's own convention.
+  it('uses Cmd/Ctrl + Shift + a digit for every chord', () => {
+    for (const { accelerator } of DEFAULT_CHORDS) {
+      expect(accelerator).toMatch(/^CommandOrControl\+Shift\+\d$/)
+    }
+  })
+
+  // Cmd + digit alone switches tabs in iTerm2, Chrome, Safari and Slack.
+  it('never takes a bare Cmd + digit', () => {
+    for (const { accelerator } of DEFAULT_CHORDS) expect(accelerator).toContain('Shift')
+  })
+
+  it("stays off the digits macOS keeps for its own screenshots", () => {
+    for (const { accelerator } of DEFAULT_CHORDS) {
+      const digit = accelerator.at(-1)!
+      expect(MACOS_RESERVED_SCREENSHOT_DIGITS).not.toContain(digit)
+    }
   })
 })
 
@@ -52,17 +63,17 @@ describe('registering chords', () => {
 
     for (const chord of DEFAULT_CHORDS) handlers.get(chord.accelerator)!()
 
-    expect(fired).toEqual(['region', 'screen', 'window', 'catalogue'])
+    expect(fired).toEqual(['region', 'window', 'catalogue'])
   })
 
   it('reports a chord another app already owns instead of failing silently', () => {
-    const results = registerChords(DEFAULT_CHORDS, (a) => a !== 'Alt+2', vi.fn())
-    expect(unavailableChords(results).map((r) => r.chord.intent)).toEqual(['screen'])
+    const results = registerChords(DEFAULT_CHORDS, (a) => a !== 'CommandOrControl+Shift+2', vi.fn())
+    expect(unavailableChords(results).map((r) => r.chord.intent)).toEqual(['window'])
   })
 
   it('still registers the chords that are available when one is taken', () => {
-    const results = registerChords(DEFAULT_CHORDS, (a) => a !== 'Alt+2', vi.fn())
-    expect(results.filter((r) => r.registered)).toHaveLength(3)
+    const results = registerChords(DEFAULT_CHORDS, (a) => a !== 'CommandOrControl+Shift+2', vi.fn())
+    expect(results.filter((r) => r.registered)).toHaveLength(2)
   })
 
   it('reports nothing unavailable when all register', () => {

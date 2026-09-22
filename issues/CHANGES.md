@@ -10,3 +10,6 @@
 - Δ 2026-09-21: Filing choices become visible chips with + New bundle last; a new bundle gets a
   required name, prefilled from the note (amends the PRD's "first note names the bundle, never
   prompted"); a handled bundle can be reopened. (new: hive-v1-19)
+- Δ 2026-09-21: Shortcuts move to Cmd/Ctrl + Shift + digit and follow the platform (the
+  whole-screen chord is folded into the region picker); HiveOp branding; preview a capture
+  before saving it. (new: hive-v1-20)

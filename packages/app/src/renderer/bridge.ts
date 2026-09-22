@@ -10,6 +10,8 @@ export interface Destination {
 
 export interface PendingView {
   isRetry?: boolean
+  /** The capture itself, from memory — it is not written to disk until Enter. */
+  imageDataUrl?: string
   kind: string
   app: string | null
   width: number
@@ -35,6 +37,7 @@ export interface FailureExplanation {
 }
 
 export interface FailurePayload {
+  isRetry?: boolean
   reason: string
   explanation: FailureExplanation
 }
@@ -85,10 +88,12 @@ export interface CatalogueBridge {
 
 export interface HiveBridge {
   appName: string
+  platform?: string
   bundleId: string
   onPending?: (fn: (view: PendingView) => void) => void
   commit?: (p: { note: string; target: FilingTarget; copyPointer: boolean }) => Promise<unknown>
   discard?: () => Promise<unknown>
+  preview?: (on: boolean) => Promise<unknown>
   onFailed?: (fn: (payload: FailurePayload) => void) => void
   retry?: () => Promise<unknown>
   wholeScreen?: () => Promise<unknown>

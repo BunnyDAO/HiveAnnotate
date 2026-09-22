@@ -12,6 +12,8 @@ export interface PendingView {
 
 contextBridge.exposeInMainWorld('hive', {
   appName: APP_NAME,
+  // So the renderer can say Cmd on a Mac and Ctrl on Windows.
+  platform: process.platform,
   bundleId: BUNDLE_ID,
 
   onPending: (fn: (view: PendingView) => void) =>
@@ -21,6 +23,7 @@ contextBridge.exposeInMainWorld('hive', {
     ipcRenderer.invoke('capture:commit', payload),
 
   discard: () => ipcRenderer.invoke('capture:discard'),
+  preview: (on: boolean) => ipcRenderer.invoke('capture:preview', on),
 
   onFailed: (fn: (payload: unknown) => void) =>
     ipcRenderer.on('capture:failed', (_e, payload: unknown) => fn(payload)),

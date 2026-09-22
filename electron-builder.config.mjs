@@ -22,6 +22,8 @@ export default {
   mac: {
     target: 'dir',
     category: 'public.app-category.developer-tools',
+    // Rendered from packages/app/brand/mark.mjs by `npm run icons`.
+    icon: 'build/icon.png',
     // Hardened runtime is required for notarization; the entitlements keep V8
     // working under it. Deliberately not sandboxed — see entitlements.mac.plist.
     hardenedRuntime: true,
