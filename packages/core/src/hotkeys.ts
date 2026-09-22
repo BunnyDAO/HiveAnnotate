@@ -41,7 +41,7 @@ export const DEFAULT_CHORDS: readonly Chord[] = [
     label: 'Pick a region (Enter right away for the whole screen)',
   },
   { intent: 'window', accelerator: 'CommandOrControl+Shift+2', label: 'Capture the window you are in' },
-  { intent: 'catalogue', accelerator: 'CommandOrControl+Shift+0', label: 'Open or close the Catalogue' },
+  { intent: 'catalogue', accelerator: 'CommandOrControl+Shift+0', label: 'Open the Catalogue' },
 ] as const
 
 export interface ChordRegistration {

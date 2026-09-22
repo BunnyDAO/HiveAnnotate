@@ -71,11 +71,14 @@ function trayMenuLabels(): string[] {
 function renderTrayMenu(): void {
   if (!tray) return
 
+  // Each shortcut is also a clickable item, so the menu is a cheat sheet you
+  // can act on: click "Open the Catalogue" and it opens. (They were greyed-out
+  // labels, with a separate "Open Catalogue" item further down.)
   const chordItems = (hotkeys?.registrations ?? []).map(({ chord, registered }) => ({
     label: registered
       ? `${chord.label}   ${formatAccelerator(chord.accelerator, process.platform)}`
       : `${chord.label}   — ${formatAccelerator(chord.accelerator, process.platform)} is taken by another app`,
-    enabled: false,
+    click: () => onCaptureIntent(chord.intent),
   }))
 
   const template: Electron.MenuItemConstructorOptions[] = [
@@ -94,7 +97,6 @@ function renderTrayMenu(): void {
       : []),
     ...chordItems,
     { type: 'separator' },
-    { label: 'Open Catalogue', click: () => catalogue?.open() },
     { label: 'About HiveAnnotate', click: showAbout },
     // Free, and made by HiveOp: one quiet way in, not an advert.
     { label: 'Made by HiveOp — hiveop.io', click: () => void shell.openExternal('https://hiveop.io') },
