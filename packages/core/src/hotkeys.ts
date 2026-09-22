@@ -34,6 +34,17 @@ export interface Chord {
 /** Digits macOS keeps for its own screenshot shortcuts (with Cmd + Shift). */
 export const MACOS_RESERVED_SCREENSHOT_DIGITS = ['3', '4', '5', '6'] as const
 
+/**
+ * Apple's own "save picture of selected area" — the Mac screenshot shortcut
+ * people already have in their fingers. HiveAnnotate cannot take it while
+ * macOS has it switched on; once the user switches Apple's off in System
+ * Settings, the region picker claims it. `id` is its macOS symbolic-hotkey id.
+ */
+export const APPLE_AREA_SCREENSHOT = {
+  id: 30,
+  accelerator: 'CommandOrControl+Shift+4',
+} as const
+
 export const DEFAULT_CHORDS: readonly Chord[] = [
   {
     intent: 'region',

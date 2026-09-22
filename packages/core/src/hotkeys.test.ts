@@ -1,5 +1,6 @@
 import { describe, it, expect, vi } from 'vitest'
 import {
+  APPLE_AREA_SCREENSHOT,
   DEFAULT_CHORDS,
   MACOS_RESERVED_SCREENSHOT_DIGITS,
   registerChords,
@@ -78,5 +79,17 @@ describe('registering chords', () => {
 
   it('reports nothing unavailable when all register', () => {
     expect(unavailableChords(registerChords(DEFAULT_CHORDS, () => true, vi.fn()))).toEqual([])
+  })
+})
+
+describe("taking over Apple's Cmd + Shift + 4", () => {
+  it('is the Mac area-screenshot shortcut, symbolic hotkey 30', () => {
+    expect(APPLE_AREA_SCREENSHOT).toEqual({ id: 30, accelerator: 'CommandOrControl+Shift+4' })
+  })
+
+  // It is only ever claimed when the user has switched Apple's off, so it must
+  // not be one of the chords registered unconditionally at start-up.
+  it('is not among the chords registered unconditionally', () => {
+    expect(DEFAULT_CHORDS.map((c) => c.accelerator)).not.toContain(APPLE_AREA_SCREENSHOT.accelerator)
   })
 })

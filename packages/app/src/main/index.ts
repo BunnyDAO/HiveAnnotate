@@ -1,9 +1,9 @@
-import { app, Tray, Menu, BrowserWindow, nativeImage, protocol, shell } from 'electron'
+import { app, Tray, Menu, BrowserWindow, nativeImage, protocol, shell, dialog } from 'electron'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { APP_NAME, BUNDLE_ID } from '@hiveannotate/core'
 import type { ChordAction } from '@hiveannotate/core'
-import { defaultBundleRoot, formatAccelerator } from '@hiveannotate/core'
+import { APPLE_AREA_SCREENSHOT, defaultBundleRoot, formatAccelerator } from '@hiveannotate/core'
 import { startHotkeys } from './hotkeys.ts'
 import { CaptureSession } from './captureSession.ts'
 import { Catalogue, registerCaptureProtocol } from './catalogue.ts'
@@ -28,6 +28,9 @@ let tray: Tray | null = null
 let aboutWindow: BrowserWindow | null = null
 let hotkeys: HotkeyService | null = null
 let secureInputBlocking = false
+/** Whether HiveAnnotate currently holds Cmd + Shift + 4 (Apple's is switched off). */
+let appleShortcutClaimed = false
+let appleShortcutChecked = false
 /** The app macOS blames for Secure Input, when it is on. */
 let secureInputHolder: string | null = null
 
@@ -74,12 +77,24 @@ function renderTrayMenu(): void {
   // Each shortcut is also a clickable item, so the menu is a cheat sheet you
   // can act on: click "Open the Catalogue" and it opens. (They were greyed-out
   // labels, with a separate "Open Catalogue" item further down.)
-  const chordItems = (hotkeys?.registrations ?? []).map(({ chord, registered }) => ({
-    label: registered
-      ? `${chord.label}   ${formatAccelerator(chord.accelerator, process.platform)}`
-      : `${chord.label}   — ${formatAccelerator(chord.accelerator, process.platform)} is taken by another app`,
-    click: () => onCaptureIntent(chord.intent),
-  }))
+  const keyName = (accelerator: string) => formatAccelerator(accelerator, process.platform)
+  const chordItems = (hotkeys?.registrations ?? []).map(({ chord, registered }) => {
+    const keys =
+      chord.intent === 'region' && appleShortcutClaimed
+        ? `${keyName(APPLE_AREA_SCREENSHOT.accelerator)} or ${keyName(chord.accelerator)}`
+        : keyName(chord.accelerator)
+    return {
+      label: registered
+        ? `${chord.label}   ${keys}`
+        : `${chord.label}   — ${keyName(chord.accelerator)} is taken by another app`,
+      click: () => onCaptureIntent(chord.intent),
+    }
+  })
+  // While Apple's Cmd + Shift + 4 is still on, offer to take it over.
+  const appleShortcutItems: Electron.MenuItemConstructorOptions[] =
+    process.platform === 'darwin' && !appleShortcutClaimed
+      ? [{ label: `Use ${keyName(APPLE_AREA_SCREENSHOT.accelerator)} for HiveAnnotate…`, click: explainAppleShortcut }]
+      : []
 
   const template: Electron.MenuItemConstructorOptions[] = [
     { label: `${APP_NAME} — ${BUNDLE_ID}`, enabled: false },
@@ -96,6 +111,7 @@ function renderTrayMenu(): void {
         ]
       : []),
     ...chordItems,
+    ...appleShortcutItems,
     { type: 'separator' },
     { label: 'About HiveAnnotate', click: showAbout },
     // Free, and made by HiveOp: one quiet way in, not an advert.
@@ -123,6 +139,58 @@ function buildTray(): void {
 
   tray = new Tray(icon)
   renderTrayMenu()
+}
+
+/**
+ * Explains how to hand Cmd + Shift + 4 to HiveAnnotate. macOS will not let
+ * another app claim it while Apple's own is on, and there is no public way to
+ * switch Apple's off from here — so the user is shown exactly which box to
+ * untick, and the app notices within a few seconds.
+ */
+async function explainAppleShortcut(): Promise<void> {
+  const keys = formatAccelerator(APPLE_AREA_SCREENSHOT.accelerator, process.platform)
+  const { response } = await dialog.showMessageBox({
+    type: 'info',
+    buttons: ['Open Keyboard Settings', 'Not now'],
+    defaultId: 0,
+    cancelId: 1,
+    message: `Use ${keys} for HiveAnnotate`,
+    detail:
+      `macOS keeps ${keys} for its own screenshot tool. To give it to HiveAnnotate:\n\n` +
+      '1. Open Keyboard Settings.\n' +
+      '2. Click Keyboard Shortcuts…\n' +
+      '3. Choose Screenshots.\n' +
+      '4. Untick “Save picture of selected area as a file”.\n\n' +
+      `HiveAnnotate picks it up within a few seconds — no restart. Switch Apple's back on at any time and HiveAnnotate lets it go.`,
+  })
+  if (response === 0) {
+    await shell.openExternal('x-apple.systempreferences:com.apple.Keyboard-Settings.extension')
+  }
+}
+
+/** Claims Cmd + Shift + 4 when Apple's is off; gives it back when it is on. */
+async function syncAppleShortcut(): Promise<void> {
+  if (process.platform !== 'darwin' || !hotkeys) return
+  let appleEnabled = true
+  try {
+    const { execFile } = await import('node:child_process')
+    const { promisify } = await import('node:util')
+    const { helperPath } = await import('./helper.ts')
+    const { stdout } = await promisify(execFile)(helperPath(), ['apple-shortcut', String(APPLE_AREA_SCREENSHOT.id)])
+    appleEnabled = (JSON.parse(stdout) as { enabled: boolean }).enabled
+  } catch {
+    return
+  }
+  const claimed = hotkeys.claimAppleAreaShortcut(!appleEnabled)
+  if (!appleShortcutChecked) {
+    appleShortcutChecked = true
+    console.log(`[chord] ${APPLE_AREA_SCREENSHOT.accelerator}: ${appleEnabled ? "macOS's (Apple's screenshot tool is on) — offering takeover" : 'free'}`)
+  }
+  if (claimed !== appleShortcutClaimed) {
+    appleShortcutClaimed = claimed
+    console.log(`[chord] ${APPLE_AREA_SCREENSHOT.accelerator} (region): ${claimed ? 'claimed from macOS' : 'handed back to macOS'}`)
+    renderTrayMenu()
+  }
 }
 
 let session: CaptureSession | null = null
@@ -159,6 +227,11 @@ void app.whenReady().then(() => {
   })
 
   renderTrayMenu()
+
+  // Notice within a few seconds when the user switches Apple's shortcut off
+  // (or back on) in System Settings — no restart.
+  void syncAppleShortcut()
+  setInterval(() => void syncAppleShortcut(), 3000)
 })
 
 app.on('will-quit', () => hotkeys?.dispose())

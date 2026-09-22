@@ -2,6 +2,7 @@ import { globalShortcut } from 'electron'
 import { execFile } from 'node:child_process'
 import { promisify } from 'node:util'
 import {
+  APPLE_AREA_SCREENSHOT,
   DEFAULT_CHORDS,
   SecureInputWatcher,
   registerChords,
@@ -16,6 +17,11 @@ export interface HotkeyService {
   registrations: ChordRegistration[]
   unavailable: ChordRegistration[]
   onSecureInputChange: (listener: (state: SecureInputState) => void) => () => void
+  /**
+   * Takes Cmd + Shift + 4 for the region picker, or gives it back. Returns
+   * whether HiveAnnotate now holds it.
+   */
+  claimAppleAreaShortcut: (on: boolean) => boolean
   dispose: () => void
 }
 
@@ -45,13 +51,26 @@ export function startHotkeys(onIntent: (intent: ChordAction) => void): HotkeySer
   })
   watcher.start()
 
+  let appleClaimed = false
+  const claimAppleAreaShortcut = (on: boolean): boolean => {
+    if (on && !appleClaimed) {
+      appleClaimed = globalShortcut.register(APPLE_AREA_SCREENSHOT.accelerator, () => onIntent('region')) ?? false
+    } else if (!on && appleClaimed) {
+      globalShortcut.unregister(APPLE_AREA_SCREENSHOT.accelerator)
+      appleClaimed = false
+    }
+    return appleClaimed
+  }
+
   return {
+    claimAppleAreaShortcut,
     registrations,
     unavailable: unavailableChords(registrations),
     onSecureInputChange: (listener) => watcher.onChange(listener),
     dispose: () => {
       watcher.stop()
       for (const { chord } of registrations) globalShortcut.unregister(chord.accelerator)
+      claimAppleAreaShortcut(false)
     },
   }
 }

@@ -114,10 +114,25 @@ static int secureInput(void) {
   return 0;
 }
 
+// Whether one of macOS's own keyboard shortcuts is switched on, by its
+// symbolic-hotkey id (30 is Cmd + Shift + 4, "save picture of selected area").
+// Read through NSUserDefaults so it reflects System Settings the moment the
+// user changes it. Absent from the prefs means the factory default: on.
+static int appleShortcut(const char *idArg) {
+  NSDictionary *domain = [[NSUserDefaults standardUserDefaults]
+      persistentDomainForName:@"com.apple.symbolichotkeys"];
+  NSDictionary *all = domain[@"AppleSymbolicHotKeys"];
+  NSString *key = [NSString stringWithUTF8String:idArg];
+  NSDictionary *entry = [all isKindOfClass:[NSDictionary class]] ? all[key] : nil;
+  BOOL enabled = entry ? [entry[@"enabled"] boolValue] : YES;
+  emit(@{@"ok": @YES, @"id": @(atoi(idArg)), @"enabled": enabled ? @YES : @NO});
+  return 0;
+}
+
 int main(int argc, const char *argv[]) {
   @autoreleasepool {
     if (argc < 2) {
-      emit(@{@"ok": @NO, @"reason": @"usage: hive-helper frontmost|screen-permission|secure-input"});
+      emit(@{@"ok": @NO, @"reason": @"usage: hive-helper frontmost|screen-permission|secure-input|apple-shortcut <id>"});
       return 2;
     }
 
@@ -138,6 +153,8 @@ int main(int argc, const char *argv[]) {
     }
 
     if (strcmp(argv[1], "secure-input") == 0) return secureInput();
+
+    if (strcmp(argv[1], "apple-shortcut") == 0 && argc >= 3) return appleShortcut(argv[2]);
 
     emit(@{@"ok": @NO, @"reason": @"unknown-command"});
     return 2;

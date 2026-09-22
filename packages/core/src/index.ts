@@ -31,6 +31,7 @@ export {
 } from './handoff.ts'
 export type { HandoffAdapter, HandoffTarget } from './handoff.ts'
 export {
+  APPLE_AREA_SCREENSHOT,
   DEFAULT_CHORDS,
   MACOS_RESERVED_SCREENSHOT_DIGITS,
   registerChords,
