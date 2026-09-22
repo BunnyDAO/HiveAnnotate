@@ -11,8 +11,8 @@
  *     bundle.md       a rendering of the manifest, never a second source
  */
 
-import { mkdir, readFile, writeFile, readdir, rm, rename } from 'node:fs/promises'
-import { join } from 'node:path'
+import { mkdir, readFile, writeFile, readdir, rm, rename, stat } from 'node:fs/promises'
+import { basename, dirname, join, resolve } from 'node:path'
 import { slugify } from './slugify.ts'
 import { renderBundleMarkdown } from './renderBundle.ts'
 
@@ -153,6 +153,30 @@ export class BundleStore {
     const removed = takeCapture(manifest, index, id)
     await rm(join(this.root, id, removed.file), { force: true })
     return this.writeManifest(manifest)
+  }
+
+  /**
+   * Deletes a whole Bundle: its captures, notes and folder.
+   *
+   * `discard` is how the folder goes. The app passes "move to the Trash", so a
+   * delete can be undone; the default erases it, for plain-Node callers.
+   * A bundle with a damaged manifest can still be deleted — that is often the
+   * only sensible thing to do with one.
+   */
+  async deleteBundle(id: string, discard?: (dir: string) => Promise<void>): Promise<void> {
+    // The id comes from a window. Whatever it holds, only a folder directly
+    // inside the store is ever touched: no '..', no slashes, no absolute paths.
+    const dir = resolve(this.root, id)
+    if (!id || id !== basename(id) || id === '.' || id === '..' || dirname(dir) !== resolve(this.root)) {
+      throw new Error(`not a bundle id: ${JSON.stringify(id)}`)
+    }
+    // Only a folder that really is a bundle, never some other directory.
+    await stat(join(dir, MANIFEST)).catch((cause: unknown) => {
+      throw new Error(`no bundle ${id}`, { cause })
+    })
+
+    if (discard) await discard(dir)
+    else await rm(dir, { recursive: true, force: true })
   }
 
   /** Move a Capture into an existing Bundle. The correction for a mis-filed capture. */

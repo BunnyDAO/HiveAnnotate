@@ -210,7 +210,7 @@ void app.whenReady().then(() => {
 
   const registry = buildAdapterRegistry()
   session = new CaptureSession(registry)
-  catalogue = new Catalogue(registry)
+  catalogue = new Catalogue(registry, { trash: (path) => shell.trashItem(path) })
 
   hotkeys = startHotkeys(onCaptureIntent)
   for (const { chord, registered } of hotkeys.registrations) {

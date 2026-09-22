@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain, protocol, net } from 'electron'
+import { app, BrowserWindow, dialog, ipcMain, protocol, net } from 'electron'
 import { join, normalize, sep } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { fileURLToPath } from 'node:url'
@@ -45,11 +45,17 @@ export class Catalogue {
   private readonly store: BundleStore
   private readonly registry: AdapterRegistry
   private readonly root: string
+  private readonly trash: (path: string) => Promise<void>
 
-  constructor(registry: AdapterRegistry) {
+  /**
+   * `trash` is how a deleted bundle's folder goes: to the Trash, so a delete
+   * can be undone. Injected so this module still never touches files itself.
+   */
+  constructor(registry: AdapterRegistry, deps: { trash: (path: string) => Promise<void> }) {
     this.root = defaultBundleRoot()
     this.store = new BundleStore(this.root)
     this.registry = registry
+    this.trash = deps.trash
     this.wireIpc()
   }
 
@@ -137,6 +143,31 @@ export class Catalogue {
     ipcMain.handle('catalogue:close-bundle', async (_e, id: string) => this.store.closeBundle(id))
 
     ipcMain.handle('catalogue:reopen-bundle', async (_e, id: string) => this.store.reopenBundle(id))
+
+    ipcMain.handle('catalogue:delete-bundle', async (_e, id: string) => {
+      const bundle = await this.store.getBundle(id).catch(() => null)
+      const count = bundle?.captures.length ?? 0
+      const name = bundle?.intent || id
+      // A whole bundle is too much to lose to one stray click, so ask.
+      const options = {
+        type: 'warning' as const,
+        message: `Delete “${name}”?`,
+        detail:
+          `${count === 1 ? 'Its screenshot' : `All ${count} screenshots`} and notes will be moved to the Trash. ` +
+          'You can put them back from there.',
+        buttons: ['Move to Trash', 'Cancel'],
+        defaultId: 1,
+        cancelId: 1,
+      }
+      const { response } = this.window
+        ? await dialog.showMessageBox(this.window, options)
+        : await dialog.showMessageBox(options)
+      if (response !== 0) return { deleted: false }
+
+      await this.store.deleteBundle(id, this.trash)
+      console.log(`[catalogue] moved bundle ${id} to the Trash`)
+      return { deleted: true }
+    })
 
     ipcMain.handle('catalogue:handoff', async (_e, p: { id: string; adapterId: string }) => {
       const bundle = await this.store.getBundle(p.id)

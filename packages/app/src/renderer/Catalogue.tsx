@@ -43,7 +43,10 @@ export function Catalogue(): React.JSX.Element {
   const refresh = useCallback(async (keep?: string) => {
     const list = (await window.hive?.catalogue?.list()) ?? []
     setBundles(list)
-    const next = keep ?? selected ?? list[0]?.id ?? null
+    // A selected bundle that is gone (deleted here, or by an agent) falls back
+    // to the first one, instead of a panel stuck on a bundle that no longer exists.
+    const current = selected && list.some((b) => b.id === selected) ? selected : null
+    const next = keep ?? current ?? list[0]?.id ?? null
     setSelected(next)
     setBundle(next ? ((await window.hive?.catalogue?.get(next)) ?? null) : null)
   }, [selected])
@@ -98,6 +101,39 @@ export function Catalogue(): React.JSX.Element {
     setHandedOff({ id: adapterId, ok })
     window.setTimeout(() => setHandedOff((h) => (h?.id === adapterId ? null : h)), 2200)
   }
+
+  async function deleteBundle(): Promise<void> {
+    if (!bundle || busy !== null) return
+    setBusy('delete-bundle')
+    try {
+      const { deleted } = await window.hive!.catalogue!.deleteBundle(bundle.id)
+      if (!deleted) return
+      setViewing(null)
+      // Select nothing, so refresh falls back to the top of the list.
+      setSelected(null)
+      const list = (await window.hive?.catalogue?.list()) ?? []
+      setBundles(list)
+      const next = list[0]?.id ?? null
+      setSelected(next)
+      setBundle(next ? ((await window.hive?.catalogue?.get(next)) ?? null) : null)
+    } finally {
+      setBusy(null)
+    }
+  }
+
+  // Cmd + Delete moves the selected bundle to the Trash, as it does for a file
+  // in Finder. Not while typing: there it deletes words.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const typing = e.target instanceof HTMLElement && e.target.closest('input, textarea, [contenteditable]')
+      if (e.key === 'Backspace' && (e.metaKey || e.ctrlKey) && !typing && viewing === null) {
+        e.preventDefault()
+        void deleteBundle()
+      }
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  })
 
   async function act(label: string, fn: () => Promise<unknown>): Promise<void> {
     setBusy(label)
@@ -373,6 +409,20 @@ export function Catalogue(): React.JSX.Element {
             <div style={{ fontFamily: mono, fontSize: 10, letterSpacing: '.1em', color: accent, marginBottom: 8 }}>WHAT YOUR AI GETS</div>
             <div style={{ fontFamily: mono, fontSize: 11, color: dim, lineHeight: 1.7, overflowWrap: 'anywhere' }}>{bundle.pointer}</div>
           </div>
+        )}
+        {bundle && (
+          <button
+            type="button"
+            className="handoff"
+            disabled={busy !== null}
+            onClick={() => void deleteBundle()}
+            style={{ marginTop: 'auto', width: '100%', boxSizing: 'border-box', textAlign: 'left', padding: '12px 14px', borderRadius: 8, background: 'transparent', border: `1px solid ${theme.border}`, color: theme.danger, cursor: 'pointer', fontFamily: sans }}
+          >
+            <div style={{ fontSize: 13, fontWeight: 600 }}>Delete bundle</div>
+            <div style={{ marginTop: 4, fontSize: 11.5, lineHeight: 1.45, color: dim }}>
+              Moves it and its screenshots to the Trash. {formatAccelerator('CommandOrControl+Backspace', window.hive?.platform ?? 'darwin')}
+            </div>
+          </button>
         )}
       </aside>
     </div>

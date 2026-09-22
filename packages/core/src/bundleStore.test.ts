@@ -303,6 +303,48 @@ describe('closing a bundle', () => {
   })
 })
 
+describe('deleting a whole bundle', () => {
+  it('removes it, so it is no longer listed or readable', async () => {
+    const keep = await store.createBundle(capture({ note: 'keep me' }))
+    const gone = await store.createBundle(capture({ note: 'throw me away' }))
+
+    await store.deleteBundle(gone.id)
+
+    expect((await store.listBundles()).map((b) => b.id)).toEqual([keep.id])
+    await expect(store.getBundle(gone.id)).rejects.toThrow()
+    expect(await exists(join(root, gone.id))).toBe(false)
+  })
+
+  // The app moves a bundle to the Trash rather than erasing it, so a delete
+  // can be undone. The store takes that as an injected step: core stays free
+  // of Electron, which is where the Trash lives.
+  it('hands the folder to the injected discard step instead of erasing it', async () => {
+    const { id } = await store.createBundle(capture())
+    const discarded: string[] = []
+
+    await store.deleteBundle(id, async (dir) => { discarded.push(dir) })
+
+    expect(discarded).toEqual([join(root, id)])
+  })
+
+  it('refuses a bundle that does not exist', async () => {
+    await expect(store.deleteBundle('2026-09-21-nothing-here')).rejects.toThrow(/nothing-here/)
+  })
+
+  // The id arrives from the Catalogue window. Whatever it says, nothing
+  // outside the bundles folder may be deleted.
+  it('refuses any id that is not a bundle folder inside the store', async () => {
+    const discarded: string[] = []
+    const discard = async (dir: string) => { discarded.push(dir) }
+
+    for (const bad of ['..', '../..', '', '.', 'a/b', '/etc']) {
+      await expect(store.deleteBundle(bad, discard), JSON.stringify(bad)).rejects.toThrow()
+    }
+    expect(discarded).toEqual([])
+    expect(await exists(root)).toBe(true)
+  })
+})
+
 describe('a damaged manifest', () => {
   it('is reported as an error rather than read as an empty bundle', async () => {
     const { id } = await store.createBundle(capture())

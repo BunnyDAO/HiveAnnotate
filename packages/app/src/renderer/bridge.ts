@@ -81,6 +81,8 @@ export interface CatalogueBridge {
   moveCapture: (from: string, index: number, to: string | null) => Promise<unknown>
   closeBundle: (id: string) => Promise<unknown>
   reopenBundle: (id: string) => Promise<unknown>
+  /** Asks the user first; resolves with whether it was actually deleted. */
+  deleteBundle: (id: string) => Promise<{ deleted: boolean }>
   handoff: (id: string, adapterId: string) => Promise<unknown>
   adapters: () => Promise<AdapterInfo[]>
   onRefresh?: (fn: () => void) => void
