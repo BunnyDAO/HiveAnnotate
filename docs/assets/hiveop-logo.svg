@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none">
+  <defs>
+    <linearGradient id="hiveop-grad" x1="0" y1="0" x2="64" y2="64" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#22d3ee" />
+      <stop offset="100%" stop-color="#0ea5e9" />
+    </linearGradient>
+  </defs>
+  <path d="M32 4 L56 18 V46 L32 60 L8 46 V18 Z" stroke="url(#hiveop-grad)" stroke-width="3" stroke-linejoin="round" fill="none" />
+  <path d="M32 18 L46 26 V38 L32 46 L18 38 V26 Z" stroke="url(#hiveop-grad)" stroke-width="2.5" stroke-linejoin="round" fill="none" opacity="0.7" />
+</svg>
