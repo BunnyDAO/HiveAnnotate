@@ -1,4 +1,4 @@
-import { ipcMain, screen, shell } from 'electron'
+import { clipboard, ipcMain, screen, shell } from 'electron'
 import {
   ActiveBundleTracker,
   AdapterRegistry,
@@ -9,6 +9,7 @@ import {
   captureOutline,
   defaultActiveBundleRecord,
   defaultBundleRoot,
+  defaultScratchRoot,
   explainFailure,
 } from '@hiveannotate/core'
 import type { CaptureIntent, CaptureTarget, CommitTarget, PendingCapture } from '@hiveannotate/core'
@@ -78,6 +79,7 @@ export class CaptureSession {
       registry,
       now: () => new Date(),
       bundleRoot: root,
+      scratchRoot: defaultScratchRoot(),
     })
 
     this.wireIpc()
@@ -206,6 +208,17 @@ export class CaptureSession {
       await this.overlay.hide()
       console.log(`[capture] filed into ${bundle.id} (${bundle.captures.length} captures)`)
       return { id: bundle.id }
+    })
+
+    // "Copy and go": the note and the screenshot go to the clipboard as one
+    // pasteable line, and nothing is filed.
+    ipcMain.handle('capture:copy-and-go', async (_e, note: string) => {
+      if (!this.pending) return null
+      const { path, prompt } = await this.flow.stash(this.pending, note)
+      clipboard.writeText(prompt)
+      this.pending = null
+      console.log(`[capture] copied without filing — ${path}`)
+      return { path }
     })
 
     ipcMain.handle('capture:preview', async (_e, on: boolean) => {

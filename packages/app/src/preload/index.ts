@@ -23,6 +23,7 @@ contextBridge.exposeInMainWorld('hive', {
     ipcRenderer.invoke('capture:commit', payload),
 
   discard: () => ipcRenderer.invoke('capture:discard'),
+  copyAndGo: (note: string) => ipcRenderer.invoke('capture:copy-and-go', note),
   preview: (on: boolean) => ipcRenderer.invoke('capture:preview', on),
 
   onFailed: (fn: (payload: unknown) => void) =>

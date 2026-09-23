@@ -4,7 +4,8 @@ export type { ActiveBundle, CaptureDestination } from './activeBundlePolicy.ts'
 export { ActiveBundleTracker } from './activeBundleTracker.ts'
 export type { ActiveBundleTrackerDeps } from './activeBundleTracker.ts'
 export { BundleStore } from './bundleStore.ts'
-export { CaptureFlow } from './captureFlow.ts'
+export { CaptureFlow, SCRATCH_TTL_MS } from './captureFlow.ts'
+export { quickPrompt } from './quickPrompt.ts'
 export type {
   BeginResult,
   CommitOptions,
@@ -20,7 +21,7 @@ export type {
   MoveResult,
   NewCapture,
 } from './bundleStore.ts'
-export { defaultActiveBundleRecord, defaultBundleRoot } from './bundleRoot.ts'
+export { defaultActiveBundleRecord, defaultBundleRoot, defaultScratchRoot } from './bundleRoot.ts'
 export {
   AdapterRegistry,
   HandoffError,

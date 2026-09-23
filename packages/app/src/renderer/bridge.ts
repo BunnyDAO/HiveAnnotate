@@ -95,6 +95,8 @@ export interface HiveBridge {
   onPending?: (fn: (view: PendingView) => void) => void
   commit?: (p: { note: string; target: FilingTarget; copyPointer: boolean }) => Promise<unknown>
   discard?: () => Promise<unknown>
+  /** Copy the note and screenshot as one pasteable line, filing nothing. */
+  copyAndGo?: (note: string) => Promise<{ path: string } | null>
   preview?: (on: boolean) => Promise<unknown>
   onFailed?: (fn: (payload: FailurePayload) => void) => void
   retry?: () => Promise<unknown>

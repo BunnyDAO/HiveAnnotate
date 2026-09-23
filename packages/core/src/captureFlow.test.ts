@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
-import { mkdtemp, rm } from 'node:fs/promises'
+import { mkdtemp, rm, readFile, utimes } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
-import { join } from 'node:path'
+import { basename, join } from 'node:path'
 import { CaptureFlow } from './captureFlow.ts'
 import { BundleStore } from './bundleStore.ts'
 import { ActiveBundleTracker } from './activeBundleTracker.ts'
@@ -37,6 +37,7 @@ function flow(backend: CaptureBackend = backendReturning(goodCapture)): CaptureF
     registry,
     now: () => now,
     bundleRoot: join(home, 'bundles'),
+    scratchRoot: join(home, 'scratch'),
   })
 }
 
@@ -201,11 +202,11 @@ describe('⌘⏎ — file it and copy the pointer', () => {
     failing.register({
       id: 'clipboard',
       label: 'Copy prompt',
-    description: 'd',
-    done: 'Copied',
+      description: 'd',
+      done: 'Copied',
       handoff: async () => { throw new Error('clipboard unavailable') },
     })
-    const f = new CaptureFlow({ backend: backendReturning(goodCapture), store, tracker, registry: failing, now: () => now, bundleRoot: join(home, 'bundles') })
+    const f = new CaptureFlow({ backend: backendReturning(goodCapture), store, tracker, registry: failing, now: () => now, bundleRoot: join(home, 'bundles'), scratchRoot: join(home, 'scratch') })
 
     const begun = await f.begin({ kind: 'window', windowId: 1 })
     if (!begun.ok) throw new Error('setup')
@@ -282,5 +283,74 @@ describe('naming a new bundle', () => {
     await expect(
       flow().commit(begun.pending, ' ', { target: { kind: 'new', name: ' ' } }),
     ).rejects.toThrow(/name/i)
+  })
+})
+
+describe('copy and go — a capture that is copied but never filed', () => {
+  it('writes the screenshot where an agent can read it, and copies a line naming it', async () => {
+    const f = flow()
+    const begun = await f.begin({ kind: 'window', windowId: 1 })
+    if (!begun.ok) throw new Error('capture failed')
+
+    const { path, prompt } = await f.stash(begun.pending, 'the sidebar collapses')
+
+    expect(path.startsWith(join(home, 'scratch'))).toBe(true)
+    expect(path.endsWith('.png')).toBe(true)
+    expect(new Uint8Array(await readFile(path))).toEqual(goodCapture.image)
+    expect(prompt).toContain(path)
+    expect(prompt).toContain('the sidebar collapses')
+  })
+
+  it('files nothing: no bundle, and the active bundle is untouched', async () => {
+    const f = flow()
+    const first = await f.begin({ kind: 'window', windowId: 1 })
+    if (!first.ok) throw new Error('capture failed')
+    await f.commit(first.pending, 'a real problem', { target: { kind: 'new' } })
+    const activeBefore = await tracker.current()
+
+    const second = await f.begin({ kind: 'window', windowId: 1 })
+    if (!second.ok) throw new Error('capture failed')
+    await f.stash(second.pending, 'just show this to the agent')
+
+    expect(await store.listBundles()).toHaveLength(1)
+    expect(await tracker.current()).toEqual(activeBefore)
+  })
+
+  it('names the file after the note, so a folder of them is readable', async () => {
+    const f = flow()
+    const begun = await f.begin({ kind: 'window', windowId: 1 })
+    if (!begun.ok) throw new Error('capture failed')
+
+    const { path } = await f.stash(begun.pending, 'Sidebar Collapses!')
+
+    expect(basename(path)).toMatch(/sidebar-collapses/)
+  })
+
+  it('never overwrites an earlier one taken in the same second', async () => {
+    const f = flow()
+    const paths = new Set<string>()
+    for (let i = 0; i < 3; i++) {
+      const begun = await f.begin({ kind: 'window', windowId: 1 })
+      if (!begun.ok) throw new Error('capture failed')
+      paths.add((await f.stash(begun.pending, 'same note')).path)
+    }
+    expect(paths.size).toBe(3)
+  })
+
+  // These are throwaway by definition; without this the folder grows forever.
+  it('clears out scratch screenshots older than a week', async () => {
+    const f = flow()
+    const begun = await f.begin({ kind: 'window', windowId: 1 })
+    if (!begun.ok) throw new Error('capture failed')
+    const old = (await f.stash(begun.pending, 'last month')).path
+    const eightDaysAgo = new Date(now.getTime() - 8 * 24 * 60 * MINUTE)
+    await utimes(old, eightDaysAgo, eightDaysAgo)
+
+    const again = await f.begin({ kind: 'window', windowId: 1 })
+    if (!again.ok) throw new Error('capture failed')
+    const fresh = (await f.stash(again.pending, 'today')).path
+
+    await expect(readFile(old)).rejects.toThrow()
+    expect(new Uint8Array(await readFile(fresh))).toEqual(goodCapture.image)
   })
 })

@@ -7,12 +7,15 @@
  */
 
 import { join } from 'node:path'
+import { mkdir, readdir, rm, stat, writeFile } from 'node:fs/promises'
 import { decideDestination, STALE_AFTER_MS } from './activeBundlePolicy.ts'
 import type { CaptureDestination } from './activeBundlePolicy.ts'
 import { ActiveBundleTracker } from './activeBundleTracker.ts'
 import { BundleStore } from './bundleStore.ts'
 import type { Bundle } from './bundleStore.ts'
 import { AdapterRegistry, bundlePointer } from './handoff.ts'
+import { quickPrompt } from './quickPrompt.ts'
+import { slugify } from './slugify.ts'
 import type { CaptureBackend, CaptureFailure, CaptureTarget } from './macos/captureBackend.ts'
 
 export interface PendingCapture {
@@ -53,7 +56,16 @@ export interface CaptureFlowDeps {
    * relative or missing root would produce a pointer that leads nowhere.
    */
   bundleRoot: string
+  /**
+   * Where "copy and go" screenshots land: captures the user wanted to show an
+   * agent but not keep. Absolute, and never inside `bundleRoot` — anything
+   * listing bundles would otherwise read one as a bundle.
+   */
+  scratchRoot: string
 }
+
+/** How long a "copy and go" screenshot survives before it is cleared out. */
+export const SCRATCH_TTL_MS = 7 * 24 * 60 * 60 * 1000
 
 export class CaptureFlow {
   private readonly deps: CaptureFlowDeps
@@ -121,6 +133,42 @@ export class CaptureFlow {
     return bundle
   }
 
+  /**
+   * "Copy and go": write the screenshot somewhere an agent can read it and
+   * return the line to paste, without filing anything.
+   *
+   * A terminal cannot paste an image, so the picture has to be a file. It is
+   * not a Bundle: no manifest, no bundle.md, nothing in the Catalogue, and the
+   * active Bundle is untouched — this capture was never part of a problem the
+   * user is keeping. Old ones are cleared out as new ones arrive.
+   */
+  async stash(pending: PendingCapture, note: string): Promise<{ path: string; prompt: string }> {
+    const root = this.deps.scratchRoot
+    await mkdir(root, { recursive: true })
+    await this.clearOldScratch(root)
+
+    const stamp = pending.takenAt.toISOString().slice(0, 16).replace(/[-:]/g, '').replace('T', '-')
+    const slug = slugify(note) || 'capture'
+    // A second capture in the same minute must not overwrite the first.
+    let path = join(root, `${stamp}-${slug}.png`)
+    for (let n = 2; await exists(path); n++) path = join(root, `${stamp}-${slug}-${n}.png`)
+
+    await writeFile(path, pending.image)
+    return { path, prompt: quickPrompt(note, path) }
+  }
+
+  private async clearOldScratch(root: string): Promise<void> {
+    const cutoff = this.deps.now().getTime() - SCRATCH_TTL_MS
+    const names = await readdir(root).catch(() => [] as string[])
+    await Promise.all(
+      names.map(async (name) => {
+        const path = join(root, name)
+        const info = await stat(path).catch(() => null)
+        if (info?.isFile() && info.mtimeMs < cutoff) await rm(path, { force: true })
+      }),
+    )
+  }
+
   /** ⎋ — nothing is written, and the active bundle is left as it was. */
   async discard(_pending: PendingCapture): Promise<void> {
     // Intentionally empty: begin() writes nothing. Discarding is the absence of
@@ -149,4 +197,8 @@ export class CaptureFlow {
       // surface it; the work is already safely on disk.
     }
   }
+}
+
+async function exists(path: string): Promise<boolean> {
+  return stat(path).then(() => true, () => false)
 }

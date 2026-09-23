@@ -55,6 +55,8 @@ export function CaptureBar(): React.JSX.Element {
   /** The capture shown large, so it can be checked before Enter commits it. */
   const [previewing, setPreviewing] = useState(false)
   const [failure, setFailure] = useState<FailurePayload | null>(null)
+  /** Copy and go has run: shown for a moment before the bar closes. */
+  const [copied, setCopied] = useState(false)
   const field = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
@@ -139,6 +141,24 @@ export function CaptureBar(): React.JSX.Element {
     }
   }
 
+  /**
+   * Copy and go: the note plus a path to the screenshot land on the clipboard,
+   * ready to paste into an agent's terminal, and nothing is filed. Confirmed
+   * on screen for a moment first, or the bar would vanish with no sign of
+   * whether anything was copied.
+   */
+  async function copyAndGo(): Promise<void> {
+    if (!view || copied) return
+    try {
+      const result = await window.hive?.copyAndGo?.(note)
+      if (!result) return
+      setCopied(true)
+      window.setTimeout(() => void window.hive?.discard?.(), 1100)
+    } catch (e) {
+      setError((e as Error).message)
+    }
+  }
+
   function togglePreview(): void {
     if (!view?.imageDataUrl) return
     const next = !previewing
@@ -198,6 +218,11 @@ export function CaptureBar(): React.JSX.Element {
       e.preventDefault()
       const step = e.shiftKey ? -1 : 1
       select((selected + step + choices.length) % choices.length)
+      return
+    }
+    if (e.key === 'Enter' && modHeld(e) && e.shiftKey) {
+      e.preventDefault()
+      void copyAndGo()
       return
     }
     if (e.key === 'Enter') {
@@ -363,6 +388,12 @@ export function CaptureBar(): React.JSX.Element {
         </div>
       )}
 
+      {copied && (
+        <div style={{ fontSize: 13, color: theme.accent, paddingBottom: 12 }}>
+          Copied. Paste it into your agent — nothing was saved.
+        </div>
+      )}
+
       {error && (
         <div style={{ fontSize: 12, color: theme.danger, paddingBottom: 12 }}>{error}</div>
       )}
@@ -424,6 +455,7 @@ export function CaptureBar(): React.JSX.Element {
         <span style={{ display: 'inline-flex', alignItems: 'center', gap: 7 }}><Key>Shift + Enter</Key><span style={{ fontSize: 12, color: muted }}>new bundle</span></span>
         <span style={{ display: 'inline-flex', alignItems: 'center', gap: 7 }}><Key>Tab</Key><span style={{ fontSize: 12, color: muted }}>choose bundle</span></span>
         <span style={{ display: 'inline-flex', alignItems: 'center', gap: 7 }}><Key>{`${MOD} + Enter`}</Key><span style={{ fontSize: 12, color: muted }}>save + copy prompt</span></span>
+        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 7 }}><Key>{`${MOD} + Shift + Enter`}</Key><span style={{ fontSize: 12, color: muted }}>copy only, do not save</span></span>
           <span style={{ display: 'inline-flex', alignItems: 'center', gap: 7 }}><Key>{`${MOD} + P`}</Key><span style={{ fontSize: 12, color: muted }}>{previewing ? 'close preview' : 'preview'}</span></span>
         <span style={{ display: 'inline-flex', alignItems: 'center', gap: 7 }}><Key>Esc</Key><span style={{ fontSize: 12, color: muted }}>throw away</span></span>
         </div>

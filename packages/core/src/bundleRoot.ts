@@ -20,6 +20,14 @@ export function defaultActiveBundleRecord(env: NodeJS.ProcessEnv = process.env):
   return join(hiveHome(env), 'active.json')
 }
 
+/**
+ * Where "copy and go" screenshots land — captures shown to an agent but never
+ * filed. Beside the bundles, never inside them, and cleared out after a week.
+ */
+export function defaultScratchRoot(env: NodeJS.ProcessEnv = process.env): string {
+  return join(hiveHome(env), 'scratch')
+}
+
 function hiveHome(env: NodeJS.ProcessEnv): string {
   return env['HIVEANNOTATE_HOME'] ?? join(homedir(), 'HiveAnnotate')
 }

@@ -1,5 +1,6 @@
-import { app, Tray, Menu, BrowserWindow, nativeImage, protocol, shell, dialog, screen } from 'electron'
+import { app, Tray, Menu, BrowserWindow, nativeImage, protocol, shell, dialog, screen, clipboard } from 'electron'
 import { join } from 'node:path'
+import { existsSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { APP_NAME, BUNDLE_ID } from '@hiveannotate/core'
 import type { ChordAction } from '@hiveannotate/core'
@@ -723,6 +724,39 @@ if (process.argv.includes('--self-test')) {
       }
       const afterCount = (await new BundleStore(defaultBundleRoot()).listBundles()).reduce((n, b) => n + b.captureCount, 0)
       check('preview: looking at a capture never saves it', afterCount === beforeCount, `${beforeCount} → ${afterCount}`)
+    }
+
+    // --- copy and go: copied, pasteable, and nothing filed -----------------
+    {
+      const cg = new BundleStore(defaultBundleRoot())
+      const beforeBundles = (await cg.listBundles()).length
+      clipboard.writeText('')
+
+      await settle('screen capture #12')
+      await session?.capture('screen')
+      await wait(1500)
+      const w = await waitFor('capture')
+      if (w) {
+        type(w, [...'why is this blank'])
+        await wait(300)
+        w.webContents.sendInputEvent({ type: 'keyDown', keyCode: 'Return', modifiers: ['command', 'shift'] })
+        w.webContents.sendInputEvent({ type: 'keyUp', keyCode: 'Return', modifiers: ['command', 'shift'] })
+        await wait(900)
+
+        const shown: string = await w.webContents.executeJavaScript('document.body.innerText').catch(() => '')
+        check('copy and go: the bar says it copied and saved nothing', /nothing was saved/i.test(shown), shown.slice(0, 60))
+      }
+      await wait(1500)
+
+      const pasted = await clipboard.readText()
+      const path = pasted.match(/(\S+\.png)/)?.[1] ?? ''
+      check('copy and go: the clipboard holds the note and a screenshot path',
+        pasted.includes('why is this blank') && path !== '', pasted.slice(0, 90))
+      check('copy and go: that screenshot is really on disk',
+        path !== '' && existsSync(path), path)
+      check('copy and go: nothing was filed', (await cg.listBundles()).length === beforeBundles,
+        `${beforeBundles} bundles before, ${(await cg.listBundles()).length} after`)
+      check('copy and go: the bar closed', !BrowserWindow.getAllWindows().some((win) => win.isVisible() && win.webContents.getURL().includes('#capture')), '')
     }
 
     // --- a bundle marked handled can be reopened ----------------------------
